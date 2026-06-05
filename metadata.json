@@ -1,0 +1,6 @@
+{
+  "name": "GreenOpsAI",
+  "description": "Plateforme IA d'optimisation énergétique et de décarbonation pour l'usine Opalia Recordati.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
