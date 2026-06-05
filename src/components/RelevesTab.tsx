@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { Cabinet } from '../types';
 import { playSound } from '../utils/audio';
+import { getAccessToken } from '../utils/googleAuth';
 
 interface RelevesTabProps {
   releveTab: 'electricite' | 'eau' | 'gasoil';
@@ -53,57 +54,76 @@ export const RelevesTab: React.FC<RelevesTabProps> = ({
   // Filter logs query
   const [searchAuditQuery, setSearchAuditQuery] = React.useState<string>('');
 
-  const [auditLogs, setAuditLogs] = React.useState<any[]>(() => {
-    try {
-      const stored = localStorage.getItem('greenops_audit_trail_v1');
-      if (stored) return JSON.parse(stored);
-    } catch (e) {
-      console.error(e);
+  const [auditLogs, setAuditLogs] = React.useState<any[]>([
+    {
+      id: 'LOG-884920',
+      timestampUTC: '2026-06-04 13:05:12 UTC',
+      timestampTunis: '2026-06-04 14:05:12 (UTC+1: Tunis)',
+      actor: 'Adnen (adnen@opalia.com)',
+      role: 'Chef Énergie • Ariana',
+      target: "Centrale d'Air CTA-B (Armoire 2)",
+      eventType: 'HVAC_SETBACK',
+      previousValue: 'Débit Nominal (30 vol/h)',
+      newValue: 'Mode Veille Active (15 vol/h, surpression +15 Pa)',
+      status: 'Conforme (Validé GAMP 5)',
+      hash: 'sha256-4b8ae09af19d268efc987a02db13e51a24d27eef'
+    },
+    {
+      id: 'LOG-774921',
+      timestampUTC: '2026-06-04 11:22:04 UTC',
+      timestampTunis: '2026-06-04 12:22:04 (UTC+1: Tunis)',
+      actor: 'Sélim Manaï (selim.manai@insat.ucar.tn)',
+      role: 'Technicien Support Énergie',
+      target: 'Compteur Eau Boucle PW (PW-01)',
+      eventType: 'UPDATE_INDEX',
+      previousValue: '18 420 m³',
+      newValue: '18 485 m³ (Régime Turbulent Re > 4000)',
+      status: 'Conforme (21 CFR Part 11)',
+      hash: 'sha256-bd7c19adef657788aa90c8a32d1fdfefc091bc72'
+    },
+    {
+      id: 'LOG-223104',
+      timestampUTC: '2026-06-03 08:30:00 UTC',
+      timestampTunis: '2026-06-03 09:30:00 (UTC+1: Tunis)',
+      actor: 'System Automat (LDAP Dynamic)',
+      role: 'Active Directory SSO Gateway',
+      target: "Connexion de l'utilisateur adnen@opalia.com",
+      eventType: 'LOGIN_SSO',
+      previousValue: 'Authentification Requise',
+      newValue: 'Autorisation accordée (Groupe GG_ARIANA_ENERGY_EDIT)',
+      status: 'Connexion Sécurisée',
+      hash: 'sha256-fc7309daa7671190bc2c4dbd8ebc198fa101cd7a'
     }
-    return [
-      {
-        id: 'LOG-884920',
-        timestampUTC: '2026-06-04 13:05:12 UTC',
-        timestampTunis: '2026-06-04 14:05:12 (UTC+1: Tunis)',
-        actor: 'Adnen (adnen@opalia.com)',
-        role: 'Chef Énergie • Ariana',
-        target: "Centrale d'Air CTA-B (Armoire 2)",
-        eventType: 'HVAC_SETBACK',
-        previousValue: 'Débit Nominal (30 vol/h)',
-        newValue: 'Mode Veille Active (15 vol/h, surpression +15 Pa)',
-        status: 'Conforme (Validé GAMP 5)',
-        hash: 'sha256-4b8ae09af19d268efc987a02db13e51a24d27eef'
-      },
-      {
-        id: 'LOG-774921',
-        timestampUTC: '2026-06-04 11:22:04 UTC',
-        timestampTunis: '2026-06-04 12:22:04 (UTC+1: Tunis)',
-        actor: 'Sélim Manaï (selim.manai@insat.ucar.tn)',
-        role: 'Technicien Support Énergie',
-        target: 'Compteur Eau Boucle PW (PW-01)',
-        eventType: 'UPDATE_INDEX',
-        previousValue: '18 420 m³',
-        newValue: '18 485 m³ (Régime Turbulent Re > 4000)',
-        status: 'Conforme (21 CFR Part 11)',
-        hash: 'sha256-bd7c19adef657788aa90c8a32d1fdfefc091bc72'
-      },
-      {
-        id: 'LOG-223104',
-        timestampUTC: '2026-06-03 08:30:00 UTC',
-        timestampTunis: '2026-06-03 09:30:00 (UTC+1: Tunis)',
-        actor: 'System Automat (LDAP Dynamic)',
-        role: 'Active Directory SSO Gateway',
-        target: "Connexion de l'utilisateur adnen@opalia.com",
-        eventType: 'LOGIN_SSO',
-        previousValue: 'Authentification Requise',
-        newValue: 'Autorisation accordée (Groupe GG_ARIANA_ENERGY_EDIT)',
-        status: 'Connexion Sécurisée',
-        hash: 'sha256-fc7309daa7671190bc2c4dbd8ebc198fa101cd7a'
-      }
-    ];
-  });
+  ]);
 
-  const addAuditLog = (
+  // Load audit trail from the newly established centralized backend server DB
+  React.useEffect(() => {
+    const fetchAuditLogs = async () => {
+      try {
+        const res = await fetch('/api/audit-trail');
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data) && data.length > 0) {
+            setAuditLogs(data);
+            console.log("[Central DB] Audit logs fetched from server DB successfully.");
+          }
+        }
+      } catch (err) {
+        console.warn("[Central DB] Server audit trail unreachable, utilizing local storage fallback.", err);
+        const stored = localStorage.getItem('greenops_audit_trail_v1');
+        if (stored) {
+          try {
+            setAuditLogs(JSON.parse(stored));
+          } catch (e) {
+            console.error(e);
+          }
+        }
+      }
+    };
+    fetchAuditLogs();
+  }, []);
+
+  const addAuditLog = async (
     eventType: 'UPDATE_INDEX' | 'IMPORT_EXCEL' | 'HVAC_SETBACK' | 'LOGIN_SSO',
     target: string,
     prev: string,
@@ -111,31 +131,71 @@ export const RelevesTab: React.FC<RelevesTabProps> = ({
   ) => {
     const actorName = currentUser?.name || 'Visiteur';
     const actorEmail = currentUser?.email || 'guest@opalia.com';
-    
+    const actorRole = currentUser?.role || 'Technicien Hors-Connexion';
+
+    // Optimistic fallback structure
     const now = new Date();
     const utcString = now.toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
     const tunisDate = new Date(now.getTime() + (60 * 60 * 1000));
     const tunisString = tunisDate.toISOString().replace('T', ' ').substring(0, 19) + ' (UTC+1: Tunis)';
-
     const randHex = () => Math.floor((1 + Math.random()) * 0x100000000).toString(16).substring(1);
-    const fakeHash = 'sha256-' + randHex() + randHex().substring(0, 8);
+    const localHash = 'sha256-local-' + randHex() + randHex().substring(0, 8);
 
-    const newLog = {
+    const backupLog = {
       id: 'LOG-' + Math.floor(Math.random() * 900000 + 100000),
       timestampUTC: utcString,
       timestampTunis: tunisString,
       actor: `${actorName} (${actorEmail})`,
-      role: currentUser?.role || 'Technicien Hors-Connexion',
+      role: actorRole,
       target,
       eventType,
       previousValue: prev,
       newValue: next,
-      status: pinVerified ? 'Conforme - Signé Électroniquement' : 'Conforme (Validateur GAMP 5)',
-      hash: fakeHash
+      status: pinVerified ? 'Numérique (21 CFR Part 11 local)' : 'Conforme local (Réseau dégradé)',
+      hash: localHash
     };
 
+    try {
+      const accessToken = getAccessToken();
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json'
+      };
+      if (accessToken) {
+        headers['Authorization'] = `Bearer ${accessToken}`;
+      }
+
+      // POST to certified backend Audit Trail server
+      const res = await fetch('/api/audit-trail', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          eventType,
+          target,
+          previousValue: prev,
+          newValue: next,
+          clientActor: `${actorName} (${actorEmail})`,
+          clientRole: actorRole
+        })
+      });
+
+      if (res.ok) {
+        const bodyObj = await res.json();
+        if (bodyObj && bodyObj.log) {
+          setAuditLogs(prevLogs => {
+            const updated = [bodyObj.log, ...prevLogs];
+            localStorage.setItem('greenops_audit_trail_v1', JSON.stringify(updated));
+            return updated;
+          });
+          return;
+        }
+      }
+    } catch (error) {
+      console.warn("[Central DB] Audit trail server down, recording log locally:", error);
+    }
+
+    // fallback write to local state and local storage
     setAuditLogs(prevLogs => {
-      const updated = [newLog, ...prevLogs];
+      const updated = [backupLog, ...prevLogs];
       try {
         localStorage.setItem('greenops_audit_trail_v1', JSON.stringify(updated));
       } catch (err) {

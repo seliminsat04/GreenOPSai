@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Database, RefreshCw, FileSpreadsheet, LogIn, LogOut, CheckCircle, 
   AlertTriangle, ArrowRight, Share2, Plus, Download, Upload, Copy, ExternalLink,
-  Mail, Send
+  Mail, Send, Wifi, WifiOff
 } from 'lucide-react';
 import { googleSignIn, initAuth, logout, getAccessToken } from '../utils/googleAuth';
 import { playSound } from '../utils/audio';
@@ -51,6 +51,82 @@ export const GoogleSheetsSync: React.FC<GoogleSheetsSyncProps> = ({
   const [emailRecipient, setEmailRecipient] = useState<string>('selim.manai@insat.ucar.tn');
   const [emailReportType, setEmailReportType] = useState<'energy' | 'audit' | 'kpi'>('energy');
   const [isSendingEmail, setIsSendingEmail] = useState<boolean>(false);
+
+  // Offline Queue State hooks
+  const [queueCount, setQueueCount] = useState<number>(0);
+  const [queueItems, setQueueItems] = useState<any[]>([]);
+  const [isOfflineSimulated, setIsOfflineSimulated] = useState<boolean>(false);
+  const [isRetryingQueue, setIsRetryingQueue] = useState<boolean>(false);
+  const [isTogglingOffline, setIsTogglingOffline] = useState<boolean>(false);
+
+  const fetchQueueStatus = async () => {
+    try {
+      const res = await fetch('/api/queue/status');
+      if (res.ok) {
+        const data = await res.json();
+        setQueueCount(data.count);
+        setIsOfflineSimulated(data.isOffline);
+        setQueueItems(data.items || []);
+      }
+    } catch (err) {
+      console.error('Erreur de lecture de statut de la file d\'attente:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchQueueStatus();
+    const interval = setInterval(fetchQueueStatus, 15000); // 15s polling
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleToggleOffline = async () => {
+    playSound('click');
+    setIsTogglingOffline(true);
+    try {
+      const res = await fetch('/api/queue/toggle-offline', { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        setIsOfflineSimulated(data.isOffline);
+        setStatus({
+          type: 'success',
+          message: data.message
+        });
+        playSound('success');
+        fetchQueueStatus();
+      }
+    } catch (err: any) {
+      console.error(err);
+      setStatus({ type: 'error', message: "Échec du basculement d'alimentation réseau." });
+    } finally {
+      setIsTogglingOffline(false);
+    }
+  };
+
+  const handleRetryQueue = async () => {
+    if (!token) return;
+    playSound('click');
+    setIsRetryingQueue(true);
+    setStatus({ type: 'loading', message: "Tentative de resynchronisation d'usine en cours..." });
+    try {
+      const res = await fetch('/api/queue/retry', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Échec");
+      setStatus({ type: 'success', message: data.message });
+      playSound('success');
+      fetchQueueStatus();
+    } catch (err: any) {
+      console.error(err);
+      setStatus({ type: 'error', message: `Erreur de traitement: ${err.message || err}` });
+      playSound('alert');
+    } finally {
+      setIsRetryingQueue(false);
+    }
+  };
 
   useEffect(() => {
     if (user && user.email) {
@@ -228,15 +304,24 @@ export const GoogleSheetsSync: React.FC<GoogleSheetsSyncProps> = ({
         body: JSON.stringify({
           spreadsheetId,
           range: 'Compteurs_Index!A1:H30',
-          values: rows
+          values: rows,
+          description: "Relevé périodique des 15 compteurs de l'usine Opalia"
         })
       });
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Mise à jour refusée');
 
-      setStatus({ type: 'success', message: 'Les 15 compteurs d\'Opalia ont été exportés avec succès !' });
-      playSound('success');
+      if (data.queued) {
+        setStatus({ type: 'success', message: data.message });
+        playSound('success');
+      } else {
+        setStatus({ type: 'success', message: 'Les 15 compteurs d\'Opalia ont été exportés avec succès !' });
+        playSound('success');
+      }
+
+      // Refresh queue counts
+      fetchQueueStatus();
 
       doLocalAuditLog(
         'UPDATE_INDEX',
@@ -303,15 +388,24 @@ export const GoogleSheetsSync: React.FC<GoogleSheetsSyncProps> = ({
         body: JSON.stringify({
           spreadsheetId,
           range: 'Audit_Trail!A1:K100',
-          values: rows
+          values: rows,
+          description: "Rapport d'audit FDA CFR Part 11"
         })
       });
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Export refusé');
 
-      setStatus({ type: 'success', message: `${localLogs.length} lignes d'Audit Trail exportées avec succès !` });
-      playSound('success');
+      if (data.queued) {
+        setStatus({ type: 'success', message: data.message });
+        playSound('success');
+      } else {
+        setStatus({ type: 'success', message: `${localLogs.length} lignes d'Audit Trail exportées avec succès !` });
+        playSound('success');
+      }
+
+      // Refresh queue count
+      fetchQueueStatus();
     } catch (err: any) {
       setStatus({ type: 'error', message: `Erreur d'écriture (Audit Trail): ${err.message || err}. Créez un onglet "Audit_Trail" dans votre classeur.` });
       playSound('alert');
@@ -746,44 +840,158 @@ export const GoogleSheetsSync: React.FC<GoogleSheetsSyncProps> = ({
 
           {/* Sync operations board */}
           {spreadsheetId ? (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4.5 pt-2">
-              
-              {/* Card 1: EXPORT */}
-              <button
-                onClick={handleExportCabinets}
-                className="p-4 rounded-2xl bg-emerald-500/5 hover:bg-emerald-500/10 border border-emerald-500/15 flex flex-col items-center justify-center text-center space-y-2 cursor-pointer transition-all"
-              >
-                <Upload className="w-5 h-5 text-emerald-500" />
-                <div>
-                  <h4 className="text-[11px] font-extrabold text-slate-800 dark:text-slate-205">Exporter Compteurs</h4>
-                  <p className="text-[9.5px] text-slate-400 mt-0.5 leading-tight">Écrit les 15 index d'armoires vers l'onglet 'Compteurs_Index'</p>
-                </div>
-              </button>
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4.5 pt-2">
+                
+                {/* Card 1: EXPORT */}
+                <button
+                  onClick={handleExportCabinets}
+                  className="p-4 rounded-2xl bg-emerald-500/5 hover:bg-emerald-500/10 border border-emerald-500/15 flex flex-col items-center justify-center text-center space-y-2 cursor-pointer transition-all"
+                >
+                  <Upload className="w-5 h-5 text-emerald-500" />
+                  <div>
+                    <h4 className="text-[11px] font-extrabold text-slate-800 dark:text-slate-205">Exporter Compteurs</h4>
+                    <p className="text-[9.5px] text-slate-400 mt-0.5 leading-tight">Écrit les 15 index d'armoires vers l'onglet 'Compteurs_Index'</p>
+                  </div>
+                </button>
 
-              {/* Card 2: IMPORT COMPTEURS */}
-              <button
-                onClick={handleImportCabinets}
-                className="p-4 rounded-2xl bg-blue-500/5 hover:bg-blue-500/10 border border-blue-500/15 flex flex-col items-center justify-center text-center space-y-2 cursor-pointer transition-all"
-              >
-                <Download className="w-5 h-5 text-blue-500" />
-                <div>
-                  <h4 className="text-[11px] font-extrabold text-slate-800 dark:text-slate-205">Importer Compteurs</h4>
-                  <p className="text-[9.5px] text-slate-400 mt-0.5 leading-tight">Lit 'Compteurs_Index' et met à jour l'usine Opalia sans simulation</p>
-                </div>
-              </button>
+                {/* Card 2: IMPORT COMPTEURS */}
+                <button
+                  onClick={handleImportCabinets}
+                  className="p-4 rounded-2xl bg-blue-500/5 hover:bg-blue-500/10 border border-blue-500/15 flex flex-col items-center justify-center text-center space-y-2 cursor-pointer transition-all"
+                >
+                  <Download className="w-5 h-5 text-blue-500" />
+                  <div>
+                    <h4 className="text-[11px] font-extrabold text-slate-800 dark:text-slate-205">Importer Compteurs</h4>
+                    <p className="text-[9.5px] text-slate-400 mt-0.5 leading-tight">Lit 'Compteurs_Index' et met à jour l'usine Opalia sans simulation</p>
+                  </div>
+                </button>
 
-              {/* Card 3: EXPORT AUDIT TRAIL */}
-              <button
-                onClick={handleExportAuditLogs}
-                className="p-4 rounded-2xl bg-purple-500/5 hover:bg-purple-500/10 border border-purple-500/15 flex flex-col items-center justify-center text-center space-y-2 cursor-pointer transition-all"
-              >
-                <Share2 className="w-5 h-5 text-purple-500" />
-                <div>
-                  <h4 className="text-[11px] font-extrabold text-slate-800 dark:text-slate-205">Exporter Audit Trail</h4>
-                  <p className="text-[9.5px] text-slate-400 mt-0.5 leading-tight">Synchronise le journal de conformité 21 CFR Part 11 dans l'onglet 'Audit_Trail'</p>
-                </div>
-              </button>
+                {/* Card 3: EXPORT AUDIT TRAIL */}
+                <button
+                  onClick={handleExportAuditLogs}
+                  className="p-4 rounded-2xl bg-purple-500/5 hover:bg-purple-500/10 border border-purple-500/15 flex flex-col items-center justify-center text-center space-y-2 cursor-pointer transition-all"
+                >
+                  <Share2 className="w-5 h-5 text-purple-500" />
+                  <div>
+                    <h4 className="text-[11px] font-extrabold text-slate-800 dark:text-slate-205">Exporter Audit Trail</h4>
+                    <p className="text-[9.5px] text-slate-400 mt-0.5 leading-tight">Synchronise le journal de conformité 21 CFR Part 11 dans l'onglet 'Audit_Trail'</p>
+                  </div>
+                </button>
 
+              </div>
+
+              {/* File d'attente hors-ligne & Robustesse de livraison d'usine (ALCOA+) */}
+              <div className="border-t border-slate-100 dark:border-slate-800/60 pt-4 mt-1 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50 dark:bg-slate-950/50 p-3.5 rounded-2xl border border-slate-150 dark:border-slate-850">
+                  <div className="flex items-start space-x-3">
+                    <div className={`p-2 rounded-xl shrink-0 ${
+                      isOfflineSimulated 
+                        ? 'bg-amber-500/10 text-amber-500' 
+                        : 'bg-emerald-500/10 text-emerald-500'
+                    }`}>
+                      {isOfflineSimulated ? <WifiOff className="w-4 h-4 animate-pulse" /> : <Wifi className="w-4 h-4" />}
+                    </div>
+                    <div>
+                      <h4 className="text-[11.5px] font-extrabold text-slate-800 dark:text-slate-200">
+                        État de Liaison d'Usine (Opalia ⇆ Google Cloud)
+                      </h4>
+                      <p className="text-[9.5px] text-slate-400 mt-0.5 leading-tight">
+                        {isOfflineSimulated 
+                          ? "Fibre coupée (simulation). Les modifications d'index et d'audit trail iront alimenter la file d'attente locale sans perte." 
+                          : "Pont réseau en ligne et actif. Envoi automatique direct avec basculement automatique vers la file locale de secours en cas d'interruption."}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="shrink-0 flex items-center">
+                    <button
+                      onClick={handleToggleOffline}
+                      disabled={isTogglingOffline}
+                      className={`px-3 py-1.5 rounded-xl text-[9.5px] font-extrabold border transition-all flex items-center space-x-1 cursor-pointer select-none ${
+                        isOfflineSimulated 
+                          ? 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400 hover:bg-amber-500/15' 
+                          : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-850 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-800'
+                      }`}
+                    >
+                      <span>{isOfflineSimulated ? "🔴 Panne Simulée Actuelle" : "🔌 Débrancher Réseau (Test)"}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Queue Display Box */}
+                <div className="bg-slate-500/5 border border-slate-200/80 dark:border-slate-800 p-3.5 rounded-2xl space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <div className={`w-2 h-2 rounded-full ${queueCount > 0 ? 'bg-amber-500 animate-ping' : 'bg-[#79b823]'}`} />
+                      <span className="text-[10px] font-extrabold text-slate-600 dark:text-slate-350 uppercase tracking-widest">
+                        File de Secours en Attente d'Envoi ({queueCount})
+                      </span>
+                    </div>
+
+                    {queueCount > 0 && (
+                      <button
+                        onClick={handleRetryQueue}
+                        disabled={isRetryingQueue}
+                        className="px-3 py-1.5 rounded-xl bg-[#79b823] hover:bg-[#6aa21e] text-white text-[10px] font-extrabold transition-all flex items-center space-x-1 cursor-pointer disabled:opacity-50"
+                      >
+                        <RefreshCw className={`w-3 h-3 ${isRetryingQueue ? 'animate-spin' : ''}`} />
+                        <span>Resynchroniser la file</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {queueCount === 0 ? (
+                    <div className="text-center py-3 bg-white/40 dark:bg-slate-950/20 rounded-xl">
+                      <CheckCircle className="w-4 h-4 text-[#79b823] mx-auto opacity-75 mb-0.5" />
+                      <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
+                        Tous les lots et index d'usine sont à jour sur Google Cloud.
+                      </p>
+                      <p className="text-[9px] text-slate-450">
+                        La file d'attente locale est vide, garantissant la conformité ALCOA pour l'audit trail.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                      {queueItems.map((item, idx) => (
+                        <div 
+                          key={item.id || idx}
+                          className="p-2.5 bg-white dark:bg-slate-950 border border-slate-150 dark:border-slate-850 rounded-xl text-[9.5px] flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+                        >
+                          <div className="space-y-0.5">
+                            <div className="flex items-center space-x-1.5">
+                              <span className="px-1 py-0.2 rounded bg-amber-500/10 text-amber-500 font-mono text-[8px] font-bold">
+                                {item.id}
+                              </span>
+                              <span className="font-bold text-slate-700 dark:text-slate-205">
+                                {item.description}
+                              </span>
+                            </div>
+                            <div className="flex items-center space-x-2 text-slate-400 text-[8.5px]">
+                              <span>Onglet : <code className="font-mono text-slate-500 dark:text-slate-400">{item.range}</code></span>
+                              <span>•</span>
+                              <span>Stocké : {new Date(item.timestamp).toLocaleTimeString('fr-FR')}</span>
+                              <span>•</span>
+                              <span className="font-semibold text-rose-500">Tentatives : {item.attempts}</span>
+                            </div>
+                            {item.lastError && (
+                              <p className="text-[8.5px] text-rose-400 leading-none italic mt-0.5">
+                                Statut d'erreur : {item.lastError}
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="shrink-0 flex items-center">
+                            <span className="inline-block py-0.5 px-1.5 rounded-md bg-orange-500/10 text-orange-500 font-bold text-[8.5px] border border-orange-500/10">
+                              Mis en cache
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           ) : (
             <div className="p-4 rounded-2xl bg-amber-500/5 border border-amber-500/10 flex items-start space-x-2 text-[10.5px] text-amber-600 dark:text-amber-450">

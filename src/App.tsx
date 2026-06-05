@@ -26,6 +26,7 @@ import { ExcelImportModal } from './components/ExcelImportModal';
 import { KPIDiagnostics } from './components/KPIDiagnostics';
 import { AuthScreen } from './components/AuthScreen';
 import { playSound } from './utils/audio';
+import { getAccessToken } from './utils/googleAuth';
 import { LogOut } from 'lucide-react';
 
 const LoadingFallback = () => (
@@ -156,33 +157,82 @@ export default function App() {
     "Connexion au modèle d'analyse prédictive Opalia Core..."
   ];
 
-  // Initialize cabinets from local storage if existing, otherwise from baseline on mount
+  // Initialize cabinets from Central Database server if accessible, falling back to localStorage/baseline
   useEffect(() => {
-    let base = INITIAL_CABINETS;
-    try {
-      const saved = localStorage.getItem('greenops_cabinets');
-      if (saved) {
-        base = JSON.parse(saved);
+    const fetchCabinets = async () => {
+      try {
+        const res = await fetch('/api/cabinets');
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data) && data.length > 0) {
+            setCabinets(data);
+            setEditableCabinets(data);
+            console.log("[Central DB] Cabinets loaded from server successfully.");
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn("[Central DB] Failed to fetch server cabinets. Falling back to local cache:", err);
       }
-    } catch (e) {
-      console.warn("Could not load cabinets from localStorage. Using baseline data.", e);
-    }
-    const updated = base.map(c => {
-      const consumption = (c.endIndex - c.startIndex) * c.multiplier;
-      return { ...c, consumption };
-    });
-    setCabinets(updated);
-    setEditableCabinets(updated);
+
+      // Offline/Local storage fallback
+      let base = INITIAL_CABINETS;
+      try {
+        const saved = localStorage.getItem('greenops_cabinets');
+        if (saved) {
+          base = JSON.parse(saved);
+        }
+      } catch (e) {
+        console.warn("Could not load cabinets from localStorage. Using baseline data.", e);
+      }
+      const updated = base.map(c => {
+        const consumption = (c.endIndex - c.startIndex) * c.multiplier;
+        return { ...c, consumption };
+      });
+      setCabinets(updated);
+      setEditableCabinets(updated);
+    };
+
+    fetchCabinets();
   }, []);
 
-  const saveReleves = () => {
+  const saveReleves = async () => {
     setCabinets(editableCabinets);
+    
+    // Always backup to localStorage for offline-first robustness
     try {
       localStorage.setItem('greenops_cabinets', JSON.stringify(editableCabinets));
     } catch (e) {
-      console.error("Could not persist cabinets to localStorage", e);
+      console.error(e);
     }
-    setImportNotification("📈 Relevés manuels enregistrés avec succès ! Données globales de l'usine synchronisées localement.");
+
+    try {
+      const token = getAccessToken();
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json'
+      };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      
+      const res = await fetch('/api/cabinets', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(editableCabinets)
+      });
+      
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Server error");
+      }
+      
+      const data = await res.json();
+      setImportNotification(`📈 Relevés manuels enregistrés dans la Base Centrale ! Scellé par : ${data.actor}.`);
+    } catch (err: any) {
+      console.warn("Could not save to centralized database on server, using local fallback:", err);
+      setImportNotification("📈 Relevés enregistrés localement. (Base centrale d'usine temporairement inaccessible)");
+    }
+    
     setTimeout(() => setImportNotification(null), 4000);
   };
 
@@ -313,15 +363,16 @@ export default function App() {
   const savingEstimatedTnd = Math.max(0, baselineMetrics.totalCost - currentMetrics.totalCost);
 
   // ---- AI Interaction Chat Trigger ----
-  const triggerChatBot = async (customQueryText?: string) => {
+  const triggerChatBot = async (customQueryText?: string, imageUrl?: string) => {
     const query = customQueryText || chatInput;
-    if (!query.trim()) return;
+    if (!query.trim() && !imageUrl) return;
 
     const userMsg: ChatMessage = {
       id: Date.now().toString(),
       role: 'user',
-      content: query,
-      timestamp: new Date()
+      content: query || "Analyse de cette image d'usine attachée",
+      timestamp: new Date(),
+      imageUrl: imageUrl
     };
     setChatMessages(prev => [...prev, userMsg]);
     setChatInput('');
@@ -342,6 +393,7 @@ export default function App() {
         },
         body: JSON.stringify({
           messages: [...chatMessages, userMsg],
+          imageUrl: imageUrl, // Relayed to server for multimodal Gemini 3.5-flash analysis
           currentMetrics: {
             temperature: outsideTemp,
             products: productLots,
@@ -638,7 +690,7 @@ export default function App() {
           <main className={`flex-1 p-4 md:p-6 flex flex-col min-h-0 ${
             activeTab === 'chat' ? 'overflow-hidden pb-18 md:pb-0' : 'overflow-y-auto pb-28 md:pb-8'
           }`}>
-            <div className={`w-full ${activeTab === 'chat' ? 'flex-1 min-h-0 h-full flex flex-col' : 'flex-grow'}`}>
+            <div className={`w-full ${activeTab === 'chat' ? 'flex-1 min-h-0 h-full flex flex-col' : ''}`}>
               <AnimatePresence mode="wait">
               <motion.div
                 key={activeTab}

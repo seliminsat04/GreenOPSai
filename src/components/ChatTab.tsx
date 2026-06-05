@@ -1,7 +1,8 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { Bot, Send, RefreshCw, Sparkles, AlertTriangle, ArrowUpRight } from 'lucide-react';
+import { Bot, Send, RefreshCw, Sparkles, AlertTriangle, ArrowUpRight, Image, X, Paperclip, Mic, MicOff } from 'lucide-react';
 import { ChatMessage } from '../types';
+import { playSound } from '../utils/audio';
 
 const renderTextContent = (text: string) => {
   if (!text) return '';
@@ -242,7 +243,7 @@ interface ChatTabProps {
   setChatInput: (val: string) => void;
   isBotLoading: boolean;
   botLoaderTip: string;
-  triggerChatBot: (text?: string) => void;
+  triggerChatBot: (text?: string, imageUrl?: string) => void;
   themeMode: 'dark' | 'light';
 }
 
@@ -256,16 +257,143 @@ export const ChatTab: React.FC<ChatTabProps> = ({
   themeMode
 }) => {
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [attachedImage, setAttachedImage] = useState<string | null>(null);
+
+  // Speech Recognition States
+  const [isListening, setIsListening] = useState(false);
+  const [recognitionError, setRecognitionError] = useState<string | null>(null);
+  const recognitionRef = useRef<any>(null);
+
+  // Initialize Speech Recognition on component load
+  useEffect(() => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      const rec = new SpeechRecognition();
+      rec.continuous = false;
+      rec.interimResults = false;
+      rec.lang = 'fr-FR';
+
+      rec.onstart = () => {
+        setIsListening(true);
+        setRecognitionError(null);
+        playSound('input');
+      };
+
+      rec.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        if (transcript) {
+          setChatInput(chatInput ? chatInput + ' ' + transcript : transcript);
+          playSound('success');
+        }
+      };
+
+      rec.onerror = (event: any) => {
+        console.error("Speech recognition error:", event.error);
+        if (event.error === 'not-allowed') {
+          setRecognitionError("Accès accordé au micro requis. Activez le microphone dans l'URL.");
+        } else if (event.error === 'no-speech') {
+          setRecognitionError("Aucune parole détectée. Parlez plus fort ou approchez-vous du micro.");
+        } else {
+          setRecognitionError(`Reconstitution vocale indisponible (${event.error})`);
+        }
+        setIsListening(false);
+      };
+
+      rec.onend = () => {
+        setIsListening(false);
+      };
+
+      recognitionRef.current = rec;
+    }
+    
+    return () => {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.abort();
+        } catch (e) {}
+      }
+    };
+  }, [chatInput, setChatInput]);
+
+  const toggleListening = () => {
+    if (isListening) {
+      recognitionRef.current?.stop();
+    } else {
+      setRecognitionError(null);
+      
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+        setRecognitionError("La dictée vocale WebSpeech n'est pas reconnue par ce navigateur (conseillé : Chrome/Edge).");
+        return;
+      }
+
+      try {
+        recognitionRef.current?.start();
+      } catch (err) {
+        console.error("Failed to start voice recognition:", err);
+        // Force reinitialization if it was in state mismatch
+        try {
+          const rec = new SpeechRecognition();
+          rec.continuous = false;
+          rec.interimResults = false;
+          rec.lang = 'fr-FR';
+          rec.onstart = () => { setIsListening(true); setRecognitionError(null); playSound('input'); };
+          rec.onresult = (e: any) => {
+            const transcript = e.results[0][0].transcript;
+            if (transcript) { setChatInput(chatInput ? chatInput + ' ' + transcript : transcript); playSound('success'); }
+          };
+          rec.onerror = (e: any) => { setIsListening(false); setRecognitionError(`Erreur: ${e.error}`); };
+          rec.onend = () => { setIsListening(false); };
+          recognitionRef.current = rec;
+          rec.start();
+        } catch (subErr) {
+          setRecognitionError("Erreur d'initialisation du moteur de dictée.");
+        }
+      }
+    }
+  };
 
   // Automatically scroll messages to view
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages, isBotLoading]);
 
-  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && chatInput.trim()) {
-      triggerChatBot();
+  const handleSend = () => {
+    const trimmedInput = chatInput.trim();
+    if (trimmedInput || attachedImage) {
+      triggerChatBot(trimmedInput || undefined, attachedImage || undefined);
+      setChatInput('');
+      setAttachedImage(null);
     }
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleSend();
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (!file.type.startsWith('image/')) {
+        alert("Veuillez choisir un fichier image valide (JPG, PNG, WEBP, GIF etc.).");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          setAttachedImage(event.target.result as string);
+          playSound('input');
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const triggerFileInput = () => {
+    fileInputRef.current?.click();
   };
 
   const actionChips = [
@@ -329,6 +457,17 @@ export const ChatTab: React.FC<ChatTabProps> = ({
                 ? 'bg-white border-slate-200 text-slate-800 rounded-bl-none font-normal'
                 : 'bg-slate-900/60 border-slate-800 text-slate-200 rounded-bl-none font-normal'
             }`}>
+              {/* Optional image attachment */}
+              {msg.imageUrl && (
+                <div className="mb-3 max-w-full overflow-hidden rounded-xl border border-slate-200/50 dark:border-slate-800/80 shadow-xs">
+                  <img 
+                    src={msg.imageUrl} 
+                    alt="Attachement d'usine" 
+                    className="max-h-60 w-full object-cover select-none animate-fade-in"
+                    referrerPolicy="no-referrer"
+                  />
+                </div>
+              )}
               {/* Message text parsed dynamically from Markdown to styled enterprise components */}
               <div className="text-xs font-medium">
                 <FormattedMessage content={msg.content} isUser={msg.role === 'user'} />
@@ -361,11 +500,107 @@ export const ChatTab: React.FC<ChatTabProps> = ({
         <div ref={chatEndRef} />
       </div>
 
+      {/* Upload image thumbnail preview wrapper if attached */}
+      {attachedImage && (
+        <div className="px-6 py-3 bg-slate-50 dark:bg-slate-900/90 border-t border-slate-100 dark:border-slate-850 flex items-center justify-between shrink-0">
+          <div className="flex items-center space-x-3">
+            <div className="relative w-12 h-12 rounded-lg border border-[#79b823]/30 overflow-hidden shadow-2xs group shrink-0">
+              <img 
+                src={attachedImage} 
+                alt="Miniature d'analyse" 
+                className="w-full h-full object-cover"
+                referrerPolicy="no-referrer"
+              />
+            </div>
+            <div>
+              <span className="text-[10px] font-bold text-[#79b823] tracking-wide font-mono block uppercase">Image prête pour diagnostic IA</span>
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 font-sans block">Format d'image converti pour analyse multimodale</span>
+            </div>
+          </div>
+          <button 
+            onClick={() => setAttachedImage(null)}
+            className="p-1.5 rounded-full hover:bg-red-500/10 text-slate-400 hover:text-red-500 transition-colors cursor-pointer"
+            title="Supprimer l'image"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Hidden file input */}
+      <input 
+        type="file" 
+        ref={fileInputRef} 
+        onChange={handleFileChange} 
+        accept="image/*" 
+        className="hidden" 
+      />
+
+      {/* Voice Recognition State Panel */}
+      {(isListening || recognitionError) && (
+        <div className={`px-4 py-2 border-t text-[11px] flex items-center justify-between transition-all duration-300 ${
+          isListening 
+            ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400 animate-pulse' 
+            : 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400'
+        }`}>
+          <div className="flex items-center space-x-2">
+            {isListening ? (
+              <span className="flex h-2 w-2 relative">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+            ) : null}
+            <span>
+              {isListening 
+                ? "🎙️ Assistant en écoute... Parlez dans le micro..." 
+                : recognitionError
+              }
+            </span>
+          </div>
+          <button 
+            type="button" 
+            onClick={() => {
+              setRecognitionError(null);
+              if (isListening) recognitionRef.current?.stop();
+            }} 
+            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-[10px] font-bold px-1.5 py-0.5 rounded cursor-pointer"
+          >
+            Masquer
+          </button>
+        </div>
+      )}
+
       {/* Primary Message Input Board */}
-      <div className="p-4 bg-slate-50 dark:bg-slate-900 border-t border-slate-100 dark:border-slate-850 flex items-center space-x-3 shrink-0">
+      <div className="p-4 bg-slate-50 dark:bg-slate-900 border-t border-slate-100 dark:border-slate-850 flex items-center space-x-2.5 shrink-0">
+        <button 
+          type="button"
+          onClick={triggerFileInput}
+          title="Joindre une photo (Compteurs, factures, relevés...)"
+          className={`p-3 rounded-xl transition-all border shrink-0 cursor-pointer ${
+            attachedImage
+              ? 'bg-[#79b823]/10 text-[#79b823] border-[#79b823]/25'
+              : 'bg-white dark:bg-slate-950 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-850 hover:bg-slate-100 dark:hover:bg-slate-850'
+          }`}
+        >
+          <Paperclip className="w-4 h-4" />
+        </button>
+
+        <button 
+          type="button"
+          onClick={toggleListening}
+          title={isListening ? "Arrêter l'écoute vocale" : "Dicter votre question par commande vocale"}
+          className={`p-3 rounded-xl transition-all border shrink-0 cursor-pointer ${
+            isListening
+              ? 'bg-red-500/15 text-red-500 border-red-500/30 shadow-xs animate-pulse'
+              : 'bg-white dark:bg-slate-950 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-850 hover:bg-slate-100 dark:hover:bg-slate-850'
+          }`}
+        >
+          {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+        </button>
+
         <input 
           type="text" 
-          placeholder="Poser une question (ex: Économie si l'HVAC passe à 18%...)"
+          placeholder={attachedImage ? "Ajouter un message pour analyser l'image..." : (isListening ? "Parlez et la transcription s'affiche ici..." : "Poser une question (ex: Économie si l'HVAC passe à 18%...)")}
           value={chatInput}
           onChange={(e) => setChatInput(e.target.value)}
           onKeyDown={handleKeyPress}
@@ -373,9 +608,9 @@ export const ChatTab: React.FC<ChatTabProps> = ({
         />
         
         <button 
-          onClick={() => triggerChatBot()}
-          disabled={isBotLoading || !chatInput.trim()}
-          className="bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-200 dark:disabled:bg-slate-800 disabled:text-slate-400 disabled:cursor-not-allowed text-white p-3.5 rounded-2xl transition-all shadow-md shadow-emerald-500/5 shrink-0 cursor-pointer"
+          onClick={handleSend}
+          disabled={isBotLoading || (!chatInput.trim() && !attachedImage)}
+          className="bg-[#79b823] hover:bg-[#8bc931] disabled:bg-slate-200 dark:disabled:bg-slate-800 disabled:text-slate-400 disabled:cursor-not-allowed text-white p-3.5 rounded-2xl transition-all shadow-md shadow-emerald-500/5 shrink-0 cursor-pointer"
         >
           <Send className="w-4 h-4" />
         </button>
