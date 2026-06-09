@@ -882,6 +882,84 @@ app.post('/api/gmail/send', async (req, res) => {
 });
 
 // ==========================================
+// GOOGLE CALENDAR INTEGRATION API REAL PROXIES
+// ==========================================
+
+app.get('/api/calendar/events', async (req, res) => {
+  const token = req.headers.authorization;
+  if (!token) {
+    return res.status(401).json({ error: 'Pas d\'autorisation fournie.' });
+  }
+
+  try {
+    const response = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events?orderBy=startTime&singleEvents=true&maxResults=15', {
+      headers: { Authorization: token }
+    });
+
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      return res.status(response.status).json({ error: 'Erreur Google Calendar', details: errData });
+    }
+
+    const data = await response.json();
+    return res.json(data);
+  } catch (error: any) {
+    console.error('Calendar Get API Error:', error);
+    return res.status(500).json({ error: 'Erreur de connexion avec l\'API Google Calendar', details: error.message });
+  }
+});
+
+app.post('/api/calendar/events', async (req, res) => {
+  const token = req.headers.authorization;
+  if (!token) {
+    return res.status(401).json({ error: 'Pas d\'autorisation fournie.' });
+  }
+
+  const { summary, description, startDateTime, endDateTime } = req.body;
+  if (!summary || !startDateTime || !endDateTime) {
+    return res.status(400).json({ error: 'summary, startDateTime et endDateTime requis.' });
+  }
+
+  try {
+    const eventBody = {
+      summary,
+      description,
+      start: {
+        dateTime: startDateTime,
+        timeZone: 'Africa/Tunis'
+      },
+      end: {
+        dateTime: endDateTime,
+        timeZone: 'Africa/Tunis'
+      },
+      reminders: {
+        useDefault: true
+      }
+    };
+
+    const response = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
+      method: 'POST',
+      headers: {
+        Authorization: token,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(eventBody)
+    });
+
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      return res.status(response.status).json({ error: 'Erreur d\'insertion Google Calendar', details: errData });
+    }
+
+    const data = await response.json();
+    return res.json({ success: true, apiResponse: data });
+  } catch (error: any) {
+    console.error('Calendar Create API Error:', error);
+    return res.status(500).json({ error: 'Erreur d\'insertion Google API', details: error.message });
+  }
+});
+
+// ==========================================
 // WEATHER METEO API PROXY (FREE, NO KEY)
 // ==========================================
 app.get('/api/weather', async (req, res) => {

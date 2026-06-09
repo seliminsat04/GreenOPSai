@@ -63,8 +63,7 @@ export const KPIDiagnostics: React.FC<KPIDiagnosticsProps> = ({
   const IconComp = content.icon;
 
   return (
-    <AnimatePresence>
-      <div className="fixed inset-0 z-40 flex items-center justify-end pointer-events-none">
+    <div className="fixed inset-0 z-40 flex items-center justify-end pointer-events-none">
         {/* Underlay mask clickable */}
         <motion.div 
           initial={{ opacity: 0 }}
@@ -136,6 +135,5 @@ export const KPIDiagnostics: React.FC<KPIDiagnosticsProps> = ({
 
         </motion.div>
       </div>
-    </AnimatePresence>
   );
 };

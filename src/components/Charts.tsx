@@ -198,7 +198,7 @@ export const DonutChart: React.FC<DonutProps> = ({ elecCO2, waterCO2, gasoilCO2,
   });
 
   return (
-    <div className={`relative p-5 rounded-2xl border transition-colors duration-300 h-full flex flex-col justify-between ${
+    <div className={`relative p-5 rounded-2xl border transition-colors duration-300 flex flex-col justify-between ${
       themeMode === 'light' 
         ? 'bg-white border-slate-200/80 shadow-sm' 
         : 'bg-slate-900/60 border-slate-800 backdrop-blur-md'

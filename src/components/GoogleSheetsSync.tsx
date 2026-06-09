@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Database, RefreshCw, FileSpreadsheet, LogIn, LogOut, CheckCircle, 
   AlertTriangle, ArrowRight, Share2, Plus, Download, Upload, Copy, ExternalLink,
-  Mail, Send, Wifi, WifiOff
+  Mail, Send, Wifi, WifiOff, Calendar, Clock
 } from 'lucide-react';
 import { googleSignIn, initAuth, logout, getAccessToken } from '../utils/googleAuth';
 import { playSound } from '../utils/audio';
@@ -51,6 +51,109 @@ export const GoogleSheetsSync: React.FC<GoogleSheetsSyncProps> = ({
   const [emailRecipient, setEmailRecipient] = useState<string>('selim.manai@insat.ucar.tn');
   const [emailReportType, setEmailReportType] = useState<'energy' | 'audit' | 'kpi'>('energy');
   const [isSendingEmail, setIsSendingEmail] = useState<boolean>(false);
+
+  // Google Calendar Integration states
+  const [events, setEvents] = useState<any[]>([]);
+  const [isFetchingEvents, setIsFetchingEvents] = useState<boolean>(false);
+  const [eventSummary, setEventSummary] = useState<string>('Audit Énergétique d\'Ariana - Zone Blanche');
+  const [eventDescription, setEventDescription] = useState<string>('Évaluation GAMP 5 de conformité sur la ventilation (HVAC) de l\'armoire Opalia.');
+  const [eventDate, setEventDate] = useState<string>('');
+  const [eventTime, setEventTime] = useState<string>('10:00');
+  const [isCreatingEvent, setIsCreatingEvent] = useState<boolean>(false);
+
+  useEffect(() => {
+    // Tomorrow's date default
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    setEventDate(tomorrow.toISOString().split('T')[0]);
+  }, []);
+
+  const fetchCalendarEvents = async () => {
+    if (!token) return;
+    setIsFetchingEvents(true);
+    try {
+      const res = await fetch('/api/calendar/events', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await res.json();
+      if (res.ok && data.items) {
+        setEvents(data.items);
+      } else {
+        console.warn('Erreur lors du chargement des évènements Google Calendar:', data.error);
+      }
+    } catch (err) {
+      console.error('Erreur requete calendar get:', err);
+    } finally {
+      setIsFetchingEvents(false);
+    }
+  };
+
+  const handleCreateCalendarEvent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!token || !eventSummary || !eventDate || !eventTime) return;
+
+    // FDA / GAMP 5 Explicit mutation confirmation rule (described in workspace skill)
+    const confirmMsg = `Voulez-vous vraiment programmer cet événement "${eventSummary}" dans votre Google Calendar ? Cela réservera le créneau correspondant.`;
+    if (!window.confirm(confirmMsg)) return;
+
+    setIsCreatingEvent(true);
+    setStatus({ type: 'loading', message: "Planification de l'évènement dans Google Calendar..." });
+
+    try {
+      const startDateTime = `${eventDate}T${eventTime}:00`;
+      
+      // Calculate end time (1 hour duration)
+      const [hours, minutes] = eventTime.split(':').map(Number);
+      const endHours = (hours + 1) % 24;
+      const hoursStr = String(endHours).padStart(2, '0');
+      const endDateTime = `${eventDate}T${hoursStr}:${String(minutes).padStart(2, '0')}:00`;
+
+      const res = await fetch('/api/calendar/events', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          summary: eventSummary,
+          description: eventDescription,
+          startDateTime,
+          endDateTime
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erreur API Calendar');
+
+      setStatus({ type: 'success', message: `Évènement "${eventSummary}" planifié avec succès !` });
+      playSound('success');
+
+      // Refresh events
+      fetchCalendarEvents();
+
+      // Audit Log
+      doLocalAuditLog(
+        'LOGIN_SSO',
+        `Google Calendar: Événement planifié`,
+        'Aucun',
+        `Sujet: "${eventSummary}" le ${eventDate} à ${eventTime}`
+      );
+    } catch (err: any) {
+      console.error(err);
+      setStatus({ type: 'error', message: `Échec d'ajout d'évènement : ${err.message || err}` });
+      playSound('alert');
+    } finally {
+      setIsCreatingEvent(false);
+    }
+  };
+
+  useEffect(() => {
+    if (token) {
+      fetchCalendarEvents();
+    }
+  }, [token]);
 
   // Offline Queue State hooks
   const [queueCount, setQueueCount] = useState<number>(0);
@@ -1060,6 +1163,198 @@ export const GoogleSheetsSync: React.FC<GoogleSheetsSyncProps> = ({
                   )}
                   <span>{isSendingEmail ? 'Envoi...' : 'Envoyer par Gmail'}</span>
                 </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Google Calendar Section */}
+          <div className="border-t border-slate-100 dark:border-slate-800/60 pt-4 mt-1 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2.5">
+                <div className="p-2 rounded-xl bg-blue-500/10 text-blue-500">
+                  <Calendar className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-xs font-bold text-slate-800 dark:text-slate-205">
+                    Planification & Calendrier des Audits d'Usine
+                  </h3>
+                  <p className="text-[10px] text-slate-450 dark:text-slate-400">
+                    Planifiez vos revues énergétiques GAMP 5 et visualisez vos créneaux réservés sur Google Calendar
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={fetchCalendarEvents}
+                disabled={isFetchingEvents}
+                className="px-2.5 py-1 rounded-lg text-[9.5px] font-bold border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-350 hover:bg-slate-100 cursor-pointer flex items-center space-x-1"
+              >
+                <RefreshCw className={`w-3 h-3 ${isFetchingEvents ? 'animate-spin' : ''}`} />
+                <span>Actualiser les évènements</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+              {/* Form to create event */}
+              <form onSubmit={handleCreateCalendarEvent} className="lg:col-span-7 space-y-3.5 bg-slate-500/5 p-4 rounded-2xl border border-slate-100 dark:border-slate-850/60">
+                <h4 className="text-[10.5px] font-bold text-[#79b823] uppercase tracking-wide">Programmer un Nouvel Événement</h4>
+                
+                {/* Preset Suggestions */}
+                <div className="space-y-1">
+                  <span className="text-[9px] text-slate-400 font-bold">Modèles rapides de l'Usine d'Ariana :</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      { s: "Audit HVAC - Zone Blanche", d: "Revue complète de ventilation des CTA d'Opalia Ariana pour la conformité de surpression." },
+                      { s: "Maintenance Groupe Vapeur", d: "Étalonnage et inspection thermique de la chaudière gasoil pour autoclave d'Ariana." },
+                      { s: "Revue Index Compteurs STEG", d: "Analyse mensuelle d'intégrité de l'armoire TGBT Opalia Recordati." }
+                    ].map((preset, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => {
+                          setEventSummary(preset.s);
+                          setEventDescription(preset.d);
+                          playSound('preset');
+                        }}
+                        className="px-2 py-0.5 text-[9px] font-medium rounded-lg bg-white dark:bg-slate-950 text-slate-650 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:border-[#79b823] hover:text-[#79b823] cursor-pointer"
+                      >
+                        {preset.s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 block">Sujet de l'événement :</label>
+                  <input
+                    type="text"
+                    required
+                    value={eventSummary}
+                    onChange={(e) => setEventSummary(e.target.value)}
+                    className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3 py-2 rounded-xl text-[11px] text-slate-800 dark:text-slate-200 focus:outline-none focus:border-[#79b823]"
+                    placeholder="Titre de la réunion ou de l'audit"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-500 block">Date :</label>
+                    <input
+                      type="date"
+                      required
+                      value={eventDate}
+                      onChange={(e) => setEventDate(e.target.value)}
+                      className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3 py-2 rounded-xl text-[11px] text-slate-800 dark:text-slate-200 focus:outline-none focus:border-[#79b823]"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-500 block">Heure de Début :</label>
+                    <input
+                      type="time"
+                      required
+                      value={eventTime}
+                      onChange={(e) => setEventTime(e.target.value)}
+                      className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3 py-2 rounded-xl text-[11px] text-slate-800 dark:text-slate-200 focus:outline-none focus:border-[#79b823]"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 block">Description réglementaire (GAMP / FDA) :</label>
+                  <textarea
+                    rows={2}
+                    value={eventDescription}
+                    onChange={(e) => setEventDescription(e.target.value)}
+                    className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3 py-2 rounded-xl text-[11px] text-slate-850 dark:text-slate-200 focus:outline-none focus:border-[#79b823] resize-none"
+                    placeholder="Consignes et détails techniques"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isCreatingEvent || !eventSummary}
+                  className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-4 rounded-xl text-[11px] transition-all flex items-center justify-center space-x-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  <Calendar className="w-3.5 h-3.5" />
+                  <span>{isCreatingEvent ? 'Planification...' : "Inscrire l'événement au calendrier"}</span>
+                </button>
+              </form>
+
+              {/* List of existing events */}
+              <div className="lg:col-span-5 flex flex-col space-y-3 bg-slate-500/5 p-4 rounded-2xl border border-slate-100 dark:border-slate-850/60 max-h-[360px] overflow-hidden">
+                <div className="flex items-center justify-between pb-1 border-b border-slate-200/50 dark:border-slate-800/40">
+                  <h4 className="text-[10.5px] font-bold text-blue-500 uppercase tracking-wide">Agenda d'Opalia en direct</h4>
+                  <span className="text-[8.5px] px-1.5 py-0.2 rounded bg-blue-500/10 text-blue-500 font-mono font-bold">
+                    {events.length} évènements
+                  </span>
+                </div>
+
+                <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+                  {events.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center text-center py-10">
+                      <Calendar className="w-8 h-8 text-slate-400 opacity-40 mb-1.5" />
+                      <p className="text-[10px] text-slate-505 font-medium leading-normal">
+                        Aucun évènement planifié détecté ou chargement en cours.
+                      </p>
+                      <button 
+                        type="button" 
+                        onClick={fetchCalendarEvents}
+                        className="text-[9px] text-[#79b823] hover:underline bg-transparent border-none cursor-pointer mt-1"
+                      >
+                        Recharger l'agenda
+                      </button>
+                    </div>
+                  ) : (
+                    events.map((evt, index) => {
+                      const startTimeStr = evt.start?.dateTime || evt.start?.date || '';
+                      let formattedDate = 'Date inconnue';
+                      let formattedTime = '';
+                      
+                      if (startTimeStr) {
+                        try {
+                          const dateObj = new Date(startTimeStr);
+                          formattedDate = dateObj.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
+                          formattedTime = dateObj.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+                        } catch (e) {
+                          formattedDate = startTimeStr;
+                        }
+                      }
+
+                      return (
+                        <div 
+                          key={evt.id || index}
+                          className="p-2.5 bg-white dark:bg-slate-950 border border-slate-200/50 dark:border-slate-805 rounded-xl space-y-1 hover:border-blue-500/20 transition-all"
+                        >
+                          <div className="flex items-start justify-between">
+                            <h5 className="text-[11px] font-extrabold text-[#0f172a] dark:text-slate-100 line-clamp-1">
+                              {evt.summary || 'Sans titre'}
+                            </h5>
+                          </div>
+                          
+                          <div className="flex items-center space-x-2 text-[9px] text-[#79b823] font-mono leading-none">
+                            <div className="flex items-center space-x-0.5">
+                              <Calendar className="w-2.5 h-2.5" />
+                              <span>{formattedDate}</span>
+                            </div>
+                            {formattedTime && (
+                              <div className="flex items-center space-x-0.5">
+                                <Clock className="w-2.5 h-2.5" />
+                                <span>{formattedTime}</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {evt.description && (
+                            <p className="text-[9px] text-slate-400 line-clamp-2 leading-snug pt-0.5">
+                              {evt.description}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
               </div>
             </div>
           </div>

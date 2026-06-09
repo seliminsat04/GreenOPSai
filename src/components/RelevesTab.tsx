@@ -446,12 +446,12 @@ export const RelevesTab: React.FC<RelevesTabProps> = ({
               <table className="w-full text-left text-xs">
                 <thead>
                   <tr className="bg-slate-50 dark:bg-slate-950/60 border-b border-slate-100 dark:border-slate-850 text-slate-500 uppercase font-mono text-[9px] tracking-widest font-semibold">
-                    <th className="py-3 px-6">Identifiant</th>
-                    <th className="py-3 px-6">Appareil d'Index</th>
-                    <th className="py-3 px-6">Mult.</th>
-                    <th className="py-3 px-6 text-right">Index Précédent</th>
-                    <th className="py-3 px-6 w-32">Nouvel Index</th>
-                    <th className="py-3 px-6 text-right">Consommation Déduite</th>
+                    <th className="py-3 px-4">Identifiant</th>
+                    <th className="py-3 px-4">Appareil d'Index</th>
+                    <th className="py-3 px-4">Mult.</th>
+                    <th className="py-3 px-4 text-right">Index Précédent</th>
+                    <th className="py-3 px-4 w-44 min-w-[170px]">Nouvel Index</th>
+                    <th className="py-3 px-4 text-right">Consommation Déduite</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
@@ -472,33 +472,33 @@ export const RelevesTab: React.FC<RelevesTabProps> = ({
                           className="hover:bg-slate-50/50 dark:hover:bg-slate-950/20 transition-colors"
                         >
                           {/* ID box */}
-                          <td className="py-4 px-6 font-mono font-bold text-[10px] text-slate-400">
+                          <td className="py-4 px-4 font-mono font-bold text-[10px] text-slate-400">
                             {c.id}
                           </td>
                           
                           {/* Name & desc */}
-                          <td className="py-4 px-6">
+                          <td className="py-4 px-4">
                             <span className="font-bold text-slate-800 dark:text-slate-200 block text-xs">{c.name}</span>
                             <span className="text-[10px] text-slate-400 font-sans block mt-0.5 truncate max-w-xs">{c.description}</span>
                           </td>
 
                           {/* Multiplier */}
-                          <td className="py-4 px-6 font-mono text-slate-400">
+                          <td className="py-4 px-4 font-mono text-slate-400">
                             x{c.multiplier}
                           </td>
 
                           {/* Start index (read only) */}
-                          <td className="py-4 px-6 text-right font-mono font-bold font-medium">
+                          <td className="py-4 px-4 text-right font-mono font-bold font-medium">
                             {c.startIndex.toLocaleString('fr-FR')}
                           </td>
 
                           {/* End index (input box) */}
-                          <td className="py-4 px-6">
+                          <td className="py-4 px-4">
                             <input 
                               type="number" 
                               value={c.endIndex}
                               onChange={(e) => handleIndexChange(c.id, e.target.value)}
-                              className={`w-full py-1.5 px-3 rounded-lg border font-mono font-bold text-center text-xs focus:outline-none transition-all ${
+                              className={`w-full py-1.5 px-2 rounded-lg border font-mono font-bold text-center text-xs focus:outline-none transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
                                 isError 
                                   ? 'bg-red-500/10 border-red-400 text-red-500 focus:border-red-500' 
                                   : hasChanged 
@@ -514,7 +514,7 @@ export const RelevesTab: React.FC<RelevesTabProps> = ({
                           </td>
 
                           {/* Calculated consumption output */}
-                          <td className="py-4 px-6 text-right font-mono font-bold text-xs">
+                          <td className="py-4 px-4 text-right font-mono font-bold text-xs">
                             <span className={isError ? 'text-red-500' : hasChanged ? 'text-emerald-500' : 'text-slate-300'}>
                               {isError ? "Invalide" : c.consumption.toLocaleString('fr-FR') + " " + c.unit}
                             </span>

@@ -472,8 +472,56 @@ export default function App() {
     }`}>
       
       {/* 🚀 Interactive modal overlays */}
-      <ExcelImportModal isOpen={isImportingExcel} step={importExcelStep} onClose={() => setIsImportingExcel(false)} />
-      <KPIDiagnostics selectedKPI={selectedKPI} onClose={() => setSelectedKPI(null)} temp={outsideTemp} indirectPct={indirectPct} savingEstimatedTnd={savingEstimatedTnd} />
+      <AnimatePresence>
+        {isImportingExcel && (
+          <ExcelImportModal 
+            isOpen={isImportingExcel} 
+            onClose={() => setIsImportingExcel(false)} 
+            cabinets={editableCabinets}
+            currentUser={currentUser}
+            onImportSuccess={(updatedCabinets) => {
+              setEditableCabinets(updatedCabinets);
+              setCabinets(updatedCabinets);
+              
+              try {
+                localStorage.setItem('greenops_cabinets', JSON.stringify(updatedCabinets));
+              } catch (e) {
+                console.warn("Could not sync excel import values to localStorage", e);
+              }
+
+              const saveToDb = async () => {
+                try {
+                  const token = getAccessToken();
+                  const headers: HeadersInit = { 'Content-Type': 'application/json' };
+                  if (token) headers['Authorization'] = `Bearer ${token}`;
+                  
+                  const res = await fetch('/api/cabinets', {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify(updatedCabinets)
+                  });
+                  
+                  if (!res.ok) throw new Error("Database server error");
+                  
+                  const data = await res.json();
+                  setImportNotification(`✅ Import Excel réussi et scellé dans la Base Centrale ! Scellé par : ${data.actor}.`);
+                } catch (err) {
+                  console.warn("Centralized DB synch failed, active in offline-first mode:", err);
+                  setImportNotification("✅ Import Excel réussi localement ! (Base centrale d'usine temporairement injoignable)");
+                }
+                setTimeout(() => setImportNotification(null), 5000);
+              };
+              saveToDb();
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {selectedKPI && (
+          <KPIDiagnostics selectedKPI={selectedKPI} onClose={() => setSelectedKPI(null)} temp={outsideTemp} indirectPct={indirectPct} savingEstimatedTnd={savingEstimatedTnd} />
+        )}
+      </AnimatePresence>
 
       {/* Main Container frame */}
       <div className="flex-1 flex flex-col md:flex-row relative overflow-hidden">
@@ -780,7 +828,7 @@ export default function App() {
 
             {/* INTEGRATED ECO-COCKPIT FOOTER INSIDE SCROLLABLE AREA */}
             {activeTab !== 'chat' && (
-              <footer className={`border-t py-4 px-2 mt-12 text-center text-[10px] sm:text-xs tracking-wide shrink-0 opacity-80 ${
+              <footer className={`border-t py-4 px-2 mt-auto pt-12 text-center text-[10px] sm:text-xs tracking-wide shrink-0 opacity-80 ${
                 themeMode === 'light' ? 'text-slate-400 border-slate-200/80' : 'text-slate-500 border-slate-850'
               }`}>
                 <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5">
