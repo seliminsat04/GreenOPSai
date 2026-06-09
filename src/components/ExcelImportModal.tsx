@@ -1,5 +1,5 @@
 import React from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { FileSpreadsheet, RefreshCw, CheckCircle2, ChevronRight, X, AlertTriangle } from 'lucide-react';
 
 interface ExcelImportModalProps {

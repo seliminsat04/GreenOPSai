@@ -47,6 +47,18 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Ne pas intercepter les requêtes de développement (Vite, sources typescript, modules, rechargement à chaud)
+  if (
+    url.hostname.includes('localhost') || 
+    url.hostname.includes('127.0.0.1') ||
+    url.pathname.includes('/src/') || 
+    url.pathname.includes('@vite') || 
+    url.pathname.includes('node_modules') ||
+    url.search.includes('v=')
+  ) {
+    return;
+  }
+
   // Handle API chat requests offline fallback
   if (url.pathname.startsWith('/api/gemini/chat')) {
     event.respondWith(

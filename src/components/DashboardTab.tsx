@@ -1,5 +1,5 @@
 import React from 'react';
-import { motion } from 'motion/react';
+import { motion } from 'framer-motion';
 import { 
   Zap, Leaf, Activity, DollarSign, AlertTriangle, 
   CheckCircle2, Sparkles, TrendingUp, TrendingDown, Info, ShieldAlert

@@ -1,5 +1,5 @@
 import React from 'react';
-import { motion } from 'motion/react';
+import { motion } from 'framer-motion';
 import { 
   SlidersHorizontal, Play, Sparkles, RefreshCw, Sun, 
   ChevronRight, Thermometer, Info, HelpCircle, Activity, DollarSign

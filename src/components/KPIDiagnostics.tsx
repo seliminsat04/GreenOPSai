@@ -1,5 +1,5 @@
 import React from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Info, Sparkles, TrendingDown, RefreshCw, X, Leaf, Zap, DollarSign, Activity } from 'lucide-react';
 
 interface KPIDiagnosticsProps {

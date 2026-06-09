@@ -1,5 +1,5 @@
 import React from 'react';
-import { motion } from 'motion/react';
+import { motion } from 'framer-motion';
 import { 
   Search, Upload, Save, CheckCircle2, AlertTriangle, 
   Database, Droplets, Flame, Zap, HelpCircle,

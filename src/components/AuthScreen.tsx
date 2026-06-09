@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Shield, KeyRound, Mail, User, Briefcase, Eye, EyeOff, Sparkles, Check, AlertCircle, ArrowRight } from 'lucide-react';
 import { playSound } from '../utils/audio';
 

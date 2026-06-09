@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion } from 'motion/react';
+import { motion } from 'framer-motion';
 import { Settings, Check, Droplets, Zap, Flame, Info, Volume2, VolumeX } from 'lucide-react';
 import { Cabinet, UtilityTariffs } from '../types';
 import { playSound, getAudioMuted, setAudioMuted } from '../utils/audio';

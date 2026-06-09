@@ -1,5 +1,5 @@
 import React from 'react';
-import { motion } from 'motion/react';
+import { motion } from 'framer-motion';
 import { Search, Info, Coins, Sparkles, TrendingDown, Layers, HelpCircle } from 'lucide-react';
 import { ProductMetrics } from '../types';
 

@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef, lazy, Suspense } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   LayoutDashboard, Sliders, Database, Coins, Bot, Settings, 
   Menu, X, Sun, Moon, Calendar, MapPin, Activity, HelpCircle, ShieldAlert, Sparkles, TrendingDown, Leaf, CheckCircle2,
@@ -14,13 +14,13 @@ import {
 } from './data';
 import { Cabinet, ProductMetrics, UtilityTariffs, ChatMessage } from './types';
 
-// Modular Components (Lazy loaded for high-performance route code splitting)
-const DashboardTab = lazy(() => import('./components/DashboardTab').then(m => ({ default: m.DashboardTab })));
-const SimulatorTab = lazy(() => import('./components/SimulatorTab').then(m => ({ default: m.SimulatorTab })));
-const RelevesTab = lazy(() => import('./components/RelevesTab').then(m => ({ default: m.RelevesTab })));
-const CostsTab = lazy(() => import('./components/CostsTab').then(m => ({ default: m.CostsTab })));
-const ChatTab = lazy(() => import('./components/ChatTab').then(m => ({ default: m.ChatTab })));
-const SettingsTab = lazy(() => import('./components/SettingsTab').then(m => ({ default: m.SettingsTab })));
+// Modular Components (Direct imports for high reliability)
+import { DashboardTab } from './components/DashboardTab';
+import { SimulatorTab } from './components/SimulatorTab';
+import { RelevesTab } from './components/RelevesTab';
+import { CostsTab } from './components/CostsTab';
+import { ChatTab } from './components/ChatTab';
+import { SettingsTab } from './components/SettingsTab';
 
 import { ExcelImportModal } from './components/ExcelImportModal';
 import { KPIDiagnostics } from './components/KPIDiagnostics';
@@ -700,7 +700,6 @@ export default function App() {
                 transition={{ duration: 0.28, ease: 'easeOut' }}
                 className={`w-full ${activeTab === 'chat' ? 'flex-1 min-h-0 h-full flex flex-col' : ''}`}
               >
-                <Suspense fallback={<LoadingFallback />}>
                   {activeTab === 'dashboard' && (
                     <DashboardTab 
                       cabinets={cabinets}
@@ -775,7 +774,6 @@ export default function App() {
                       setCabinets={setCabinets}
                     />
                   )}
-                </Suspense>
               </motion.div>
             </AnimatePresence>
             </div>

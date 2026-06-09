@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { motion } from 'motion/react';
+import { motion } from 'framer-motion';
 import { Bot, Send, RefreshCw, Sparkles, AlertTriangle, ArrowUpRight, Image, X, Paperclip, Mic, MicOff } from 'lucide-react';
 import { ChatMessage } from '../types';
 import { playSound } from '../utils/audio';
