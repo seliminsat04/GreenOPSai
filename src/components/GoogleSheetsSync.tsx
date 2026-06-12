@@ -54,6 +54,8 @@ export const GoogleSheetsSync: React.FC<GoogleSheetsSyncProps> = ({
 
   // Google Calendar Integration states
   const [events, setEvents] = useState<any[]>([]);
+  const [calendarsInfo, setCalendarsInfo] = useState<any[]>([]);
+  const [selectedCalendarId, setSelectedCalendarId] = useState<string>('primary');
   const [isFetchingEvents, setIsFetchingEvents] = useState<boolean>(false);
   const [eventSummary, setEventSummary] = useState<string>('Audit Énergétique d\'Ariana - Zone Blanche');
   const [eventDescription, setEventDescription] = useState<string>('Évaluation GAMP 5 de conformité sur la ventilation (HVAC) de l\'armoire Opalia.');
@@ -68,11 +70,28 @@ export const GoogleSheetsSync: React.FC<GoogleSheetsSyncProps> = ({
     setEventDate(tomorrow.toISOString().split('T')[0]);
   }, []);
 
+  const fetchCalendarList = async () => {
+    if (!token) return;
+    try {
+      const res = await fetch('/api/calendar/list', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await res.json();
+      if (res.ok && data.items) {
+        setCalendarsInfo(data.items);
+      }
+    } catch (err) {
+      console.error('Erreur requete calendar list:', err);
+    }
+  };
+
   const fetchCalendarEvents = async () => {
     if (!token) return;
     setIsFetchingEvents(true);
     try {
-      const res = await fetch('/api/calendar/events', {
+      const res = await fetch(`/api/calendar/events?calendarId=${encodeURIComponent(selectedCalendarId)}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -90,13 +109,35 @@ export const GoogleSheetsSync: React.FC<GoogleSheetsSyncProps> = ({
     }
   };
 
+  useEffect(() => {
+    if (token) {
+      fetchCalendarList();
+    }
+  }, [token]);
+
+  useEffect(() => {
+    if (token) {
+      fetchCalendarEvents();
+    }
+  }, [token, selectedCalendarId]);
+
   const handleCreateCalendarEvent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!token || !eventSummary || !eventDate || !eventTime) return;
 
     // FDA / GAMP 5 Explicit mutation confirmation rule (described in workspace skill)
-    const confirmMsg = `Voulez-vous vraiment programmer cet événement "${eventSummary}" dans votre Google Calendar ? Cela réservera le créneau correspondant.`;
-    if (!window.confirm(confirmMsg)) return;
+    const partialAutonomyEnabled = localStorage.getItem('greenops_ia_partial_autonomy') === 'true';
+    if (partialAutonomyEnabled) {
+      const signature = window.prompt("SÉCURITÉ FDA 21 CFR Part 11 - Mode Autonomie Partielle Activé\n\nVeuillez saisir votre Nom d'Energy Manager pour signer numériquement cette planification d'audit/inspection :");
+      if (!signature || !signature.trim()) {
+        setStatus({ type: 'error', message: "Planification annulée : Signature numérique obligatoire non fournie." });
+        return;
+      }
+      console.log(`[FDA Audit Trail] Calendar created and signed by ${signature}`);
+    } else {
+      const confirmMsg = `Voulez-vous vraiment programmer cet événement "${eventSummary}" dans votre Google Calendar ? Cela réservera le créneau correspondant.`;
+      if (!window.confirm(confirmMsg)) return;
+    }
 
     setIsCreatingEvent(true);
     setStatus({ type: 'loading', message: "Planification de l'évènement dans Google Calendar..." });
@@ -120,7 +161,8 @@ export const GoogleSheetsSync: React.FC<GoogleSheetsSyncProps> = ({
           summary: eventSummary,
           description: eventDescription,
           startDateTime,
-          endDateTime
+          endDateTime,
+          calendarId: selectedCalendarId
         })
       });
 
@@ -592,6 +634,18 @@ export const GoogleSheetsSync: React.FC<GoogleSheetsSyncProps> = ({
 
   const handleSendEmail = async () => {
     if (!token) return;
+
+    // FDA / GAMP 5 Explicit mutation confirmation rule (described in workspace skill)
+    const partialAutonomyEnabled = localStorage.getItem('greenops_ia_partial_autonomy') === 'true';
+    if (partialAutonomyEnabled) {
+      const signature = window.prompt("SÉCURITÉ FDA 21 CFR Part 11 - Mode Autonomie Partielle Activé\n\nVeuillez saisir votre Nom d'Energy Manager pour signer numériquement cet envoi de rapport officiel :");
+      if (!signature || !signature.trim()) {
+        setStatus({ type: 'error', message: "Envoi annulé : Signature numérique obligatoire non fournie." });
+        return;
+      }
+      console.log(`[FDA Audit Trail] Email sent and signed by ${signature}`);
+    }
+
     playSound('click');
     setIsSendingEmail(true);
     setStatus({ type: 'loading', message: "Préparation et envoi du rapport via Gmail API..." });
@@ -1223,6 +1277,20 @@ export const GoogleSheetsSync: React.FC<GoogleSheetsSyncProps> = ({
                       </button>
                     ))}
                   </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 block">Agenda partagé ciblé :</label>
+                  <select
+                    value={selectedCalendarId}
+                    onChange={(e) => setSelectedCalendarId(e.target.value)}
+                    className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3 py-2 rounded-xl text-[11px] text-slate-800 dark:text-slate-200 focus:outline-none focus:border-[#79b823]"
+                  >
+                    <option value="primary">Agenda principal (Energy Manager)</option>
+                    {calendarsInfo && calendarsInfo.filter(c => c.id !== calendarsInfo.find(primary => primary.primary)?.id).map(cal => (
+                      <option key={cal.id} value={cal.id}>{cal.summary}</option>
+                    ))}
+                  </select>
                 </div>
 
                 <div className="space-y-1">

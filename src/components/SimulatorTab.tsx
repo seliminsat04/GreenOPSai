@@ -197,7 +197,7 @@ export const SimulatorTab: React.FC<SimulatorTabProps> = ({
                   <div className="flex items-center space-x-2 shrink-0">
                     <button 
                       onClick={() => handleLotChange(p.id, (productLots[p.id] || 0) - 5)}
-                      className="w-7 h-7 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-500 rounded-lg font-bold hover:bg-slate-100 flex items-center justify-center cursor-pointer text-xs"
+                      className="w-7 h-7 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 rounded-lg font-bold hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center cursor-pointer text-xs transition-colors"
                     >
                       -
                     </button>
@@ -205,11 +205,11 @@ export const SimulatorTab: React.FC<SimulatorTabProps> = ({
                       type="number" 
                       value={productLots[p.id] || 0}
                       onChange={(e) => handleLotChange(p.id, Number(e.target.value))}
-                      className="w-12 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 font-mono font-bold text-center py-1 rounded-lg text-xs"
+                      className="w-12 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 font-mono font-bold text-center py-1 rounded-lg text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:border-emerald-500"
                     />
                     <button 
                       onClick={() => handleLotChange(p.id, (productLots[p.id] || 0) + 5)}
-                      className="w-7 h-7 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-500 rounded-lg font-bold hover:bg-slate-100 flex items-center justify-center cursor-pointer text-xs"
+                      className="w-7 h-7 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 rounded-lg font-bold hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center cursor-pointer text-xs transition-colors"
                     >
                       +
                     </button>

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Settings, Check, Droplets, Zap, Flame, Info, Volume2, VolumeX } from 'lucide-react';
+import { Settings, Check, Droplets, Zap, Flame, Info, Volume2, VolumeX, Shield, Fingerprint, Lock } from 'lucide-react';
 import { Cabinet, UtilityTariffs } from '../types';
 import { playSound, getAudioMuted, setAudioMuted } from '../utils/audio';
 import { GoogleSheetsSync } from './GoogleSheetsSync';
@@ -23,6 +23,12 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   setCabinets
 }) => {
   const [muted, setMuted] = useState(getAudioMuted());
+  const [strictApproval, setStrictApproval] = useState<boolean>(() => {
+    return localStorage.getItem('greenops_ia_strict_approval') !== 'false';
+  });
+  const [partialAutonomy, setPartialAutonomy] = useState<boolean>(() => {
+    return localStorage.getItem('greenops_ia_partial_autonomy') === 'true';
+  });
 
   const handleTariffChange = (key: keyof UtilityTariffs, val: number) => {
     playSound('input');
@@ -44,6 +50,32 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
     if (!nextMute) {
       playSound('success');
     }
+  };
+
+  const handleToggleStrict = () => {
+    const nextVal = !strictApproval;
+    setStrictApproval(nextVal);
+    localStorage.setItem('greenops_ia_strict_approval', String(nextVal));
+    
+    // Mutual exclusivity
+    if (nextVal && partialAutonomy) {
+      setPartialAutonomy(false);
+      localStorage.setItem('greenops_ia_partial_autonomy', 'false');
+    }
+    playSound('click');
+  };
+
+  const handleTogglePartial = () => {
+    const nextVal = !partialAutonomy;
+    setPartialAutonomy(nextVal);
+    localStorage.setItem('greenops_ia_partial_autonomy', String(nextVal));
+    
+    // Mutual exclusivity
+    if (nextVal && strictApproval) {
+      setStrictApproval(false);
+      localStorage.setItem('greenops_ia_strict_approval', 'false');
+    }
+    playSound('click');
   };
 
   return (
@@ -86,7 +118,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                 step="0.001"
                 value={tariffs.stegElectricity}
                 onChange={(e) => handleTariffChange('stegElectricity', Number(e.target.value))}
-                className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 focus:border-emerald-500 font-mono text-xs font-bold text-slate-800 dark:text-slate-105 py-2 px-3 rounded-xl w-full focus:outline-none focus:ring-1 focus:ring-emerald-500/25 transition-all text-left"
+                className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 focus:border-emerald-500 font-mono text-xs font-bold text-slate-800 dark:text-slate-100 py-2 px-3 rounded-xl w-full focus:outline-none focus:ring-1 focus:ring-emerald-500/25 transition-all text-left"
               />
             </div>
 
@@ -98,7 +130,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                 step="0.05"
                 value={tariffs.sonedeWater}
                 onChange={(e) => handleTariffChange('sonedeWater', Number(e.target.value))}
-                className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 focus:border-emerald-500 font-mono text-xs font-bold text-slate-800 dark:text-slate-105 py-2 px-3 rounded-xl w-full focus:outline-none focus:ring-1 focus:ring-emerald-500/25 transition-all text-left"
+                className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 focus:border-emerald-500 font-mono text-xs font-bold text-slate-800 dark:text-slate-100 py-2 px-3 rounded-xl w-full focus:outline-none focus:ring-1 focus:ring-emerald-500/25 transition-all text-left"
               />
             </div>
 
@@ -110,7 +142,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                 step="0.05"
                 value={tariffs.gasoilLiter}
                 onChange={(e) => handleTariffChange('gasoilLiter', Number(e.target.value))}
-                className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 focus:border-emerald-500 font-mono text-xs font-bold text-slate-800 dark:text-slate-105 py-2 px-3 rounded-xl w-full focus:outline-none focus:ring-1 focus:ring-emerald-500/25 transition-all text-left"
+                className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 focus:border-emerald-500 font-mono text-xs font-bold text-slate-800 dark:text-slate-100 py-2 px-3 rounded-xl w-full focus:outline-none focus:ring-1 focus:ring-emerald-500/25 transition-all text-left"
               />
             </div>
           </div>
@@ -135,7 +167,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                 step="0.01"
                 value={tariffs.co2Electricity}
                 onChange={(e) => handleTariffChange('co2Electricity', Number(e.target.value))}
-                className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 focus:border-emerald-500 font-mono text-xs font-bold text-slate-800 dark:text-slate-105 py-2 px-3 rounded-xl w-full focus:outline-none focus:ring-1 focus:ring-emerald-500/25 transition-all text-left"
+                className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 focus:border-emerald-500 font-mono text-xs font-bold text-slate-800 dark:text-slate-100 py-2 px-3 rounded-xl w-full focus:outline-none focus:ring-1 focus:ring-emerald-500/25 transition-all text-left"
               />
             </div>
 
@@ -147,7 +179,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                 step="0.01"
                 value={tariffs.co2Gasoil}
                 onChange={(e) => handleTariffChange('co2Gasoil', Number(e.target.value))}
-                className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 focus:border-emerald-500 font-mono text-xs font-bold text-slate-800 dark:text-slate-105 py-2 px-3 rounded-xl w-full focus:outline-none focus:ring-1 focus:ring-emerald-500/25 transition-all text-left"
+                className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 focus:border-emerald-500 font-mono text-xs font-bold text-slate-800 dark:text-slate-100 py-2 px-3 rounded-xl w-full focus:outline-none focus:ring-1 focus:ring-emerald-500/25 transition-all text-left"
               />
             </div>
 
@@ -209,6 +241,105 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
           </div>
         </div>
 
+      </div>
+
+      {/* Dynamic IA Autonomy control panel (FDA / GMP / Human-in-the-Loop) */}
+      <div className={`p-6 rounded-3xl border space-y-5 ${
+        themeMode === 'light' 
+          ? 'bg-white border-slate-200/80 shadow-xs' 
+          : 'bg-slate-900/40 border-slate-800'
+      }`}>
+        <div className="flex items-start space-x-3 border-b border-slate-100 dark:border-slate-850 pb-4">
+          <div className="p-2.5 rounded-2xl bg-amber-500/10 text-amber-500 shrink-0">
+            <Shield className="w-5 h-5 animate-pulse" />
+          </div>
+          <div>
+            <h3 className="text-xs font-bold text-amber-500 uppercase tracking-widest font-mono">
+              Contrôle de l'Autonomie de l'IA (Human-in-the-Loop)
+            </h3>
+            <p className="text-xs text-slate-400 mt-1">
+              Pour garantir la conformité réglementaire pharmaceutique (normes GMP / GAMP 5 / FDA 21 CFR Part 11) et la sécurité opérationnelle d'Opalia Ariana, définissez le niveau de contrôle ou d'autonomie accordé à l'assistant GreenOpsAI.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5.5">
+          {/* Toggle 1: Approach mode strict */}
+          <div className={`p-4.5 rounded-2xl border transition-all ${
+            strictApproval 
+              ? 'bg-emerald-500/5 border-emerald-500/20 dark:border-emerald-500/30' 
+              : 'bg-slate-50/50 dark:bg-slate-950/40 border-slate-200/50 dark:border-slate-850'
+          }`}>
+            <div className="flex items-start justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center space-x-2">
+                  <span className={`w-2 h-2 rounded-full ${strictApproval ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+                  <b className="text-xs text-slate-800 dark:text-slate-100 font-display">Mode d'Approbation Strict (Par défaut)</b>
+                </div>
+                <p className="text-[11px] text-slate-400 dark:text-slate-500 leading-normal font-sans">
+                  Oblige l'IA à afficher une carte de confirmation interactive dans le chat (ex: <i>« Voulez-vous que j'envoie ce rapport à Selim Manai ? »</i>) avant de déclencher l'API Gmail ou de planifier des réunions de maintenance sur Google Calendar.
+                </p>
+              </div>
+
+              {/* IOS Styled Toggle Switch */}
+              <button
+                onClick={handleToggleStrict}
+                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  strictApproval ? 'bg-[#79b823]' : 'bg-slate-200 dark:bg-slate-800'
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                    strictApproval ? 'translate-x-4' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+
+          {/* Toggle 2: Autonomie partielle */}
+          <div className={`p-4.5 rounded-2xl border transition-all ${
+            partialAutonomy 
+              ? 'bg-blue-500/5 border-blue-500/20 dark:border-blue-500/30' 
+              : 'bg-slate-50/50 dark:bg-slate-950/40 border-slate-200/50 dark:border-slate-850'
+          }`}>
+            <div className="flex items-start justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center space-x-2">
+                  <span className={`w-2 h-2 rounded-full ${partialAutonomy ? 'bg-blue-500' : 'bg-slate-400'}`} />
+                  <b className="text-xs text-slate-800 dark:text-slate-100 font-display">Mode Autonomie Partielle</b>
+                </div>
+                <p className="text-[11px] text-slate-400 dark:text-slate-500 leading-normal font-sans">
+                  L'IA est autorisée à éditer les feuilles Google Sheets en arrière-plan en temps réel, mais requiert une signature ou validation numérique sécurisée (double authentification d'opérateur) pour l'envoi d'emails officiels ou la planification d'inspections critiques.
+                </p>
+              </div>
+
+              {/* IOS Styled Toggle Switch */}
+              <button
+                onClick={handleTogglePartial}
+                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  partialAutonomy ? 'bg-blue-500' : 'bg-slate-200 dark:bg-slate-800'
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                    partialAutonomy ? 'translate-x-4' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-slate-50 dark:bg-slate-950/50 rounded-2xl p-4 border border-slate-150 dark:border-slate-850 text-[11px] text-slate-400 dark:text-slate-500 space-y-1.5 font-sans leading-relaxed">
+          <div className="flex items-center space-x-1.5 text-xs text-slate-700 dark:text-slate-350 font-bold font-display">
+            <Lock className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+            <span>Cadre de Traçabilité FDA 21 CFR Part 11</span>
+          </div>
+          <p>
+            Tout contournement ou désactivation de l'approbation humaine sur les systèmes d'exploitation d'Opalia invalidera le certificat de libération d'énergie. Les signatures sont consignées avec horodatage immuable (Tunis UTC+1) dans l'Audit Trail.
+          </p>
+        </div>
       </div>
 
       {/* Google Sheets Live Synchronization Engine */}

@@ -3,7 +3,7 @@ import path from 'path';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, Type } from '@google/genai';
 
 dotenv.config();
 
@@ -84,7 +84,7 @@ async function retryWithBackoff<T>(
 
 // Chat integration endpoint with Gemini
 app.post('/api/gemini/chat', async (req, res) => {
-  const { messages, currentMetrics, imageUrl } = req.body;
+  const { messages, currentMetrics, imageUrl, currentUser } = req.body;
   
   if (!messages || !Array.isArray(messages)) {
     return res.status(400).json({ error: 'Format de messages invalide.' });
@@ -92,6 +92,22 @@ app.post('/api/gemini/chat', async (req, res) => {
 
   const userQuery = messages[messages.length - 1]?.content || '';
   
+  // Resolve active user metadata dynamically
+  const authHeader = req.headers.authorization;
+  let verifiedUser: { email: string; name: string } | null = null;
+  if (authHeader) {
+    try {
+      verifiedUser = await validateGoogleToken(authHeader);
+    } catch (e) {
+      console.error('[Auth Error] Error validating Google token in chat endpoint:', e);
+    }
+  }
+
+  const activeUserName = verifiedUser?.name || currentUser?.name || 'Adnen';
+  const activeUserEmail = verifiedUser?.email || currentUser?.email || 'adnen@opalia.com';
+  const activeUserRole = currentUser?.role || (verifiedUser ? 'Utilisateur Google Workspace' : 'Energy Manager');
+  const isCfrVerified = !!verifiedUser;
+
   // Format context based on current metrics if available from simulator
   let metricsContext = '';
   if (currentMetrics) {
@@ -103,16 +119,196 @@ app.post('/api/gemini/chat', async (req, res) => {
 - Empreinte carbone estimée: ${currentMetrics.totalCO2 || 0} Tonnes de CO2.\n`;
   }
 
+  const userContext = `\n[Informations sur l'interlocuteur d'Opalia en temps réel] :
+- Nom: ${activeUserName}
+- Email: ${activeUserEmail}
+- Rôle/Fonction dans l'usine: ${activeUserRole}
+- Certification d'identité FDA 21 CFR Part 11: ${isCfrVerified ? 'VÉRIFIÉ (via Google Workspace SSO de confiance)' : 'Non vérifié (session locale)'}
+\n`;
+
   const systemPrompt = `Tu es GreenOpsAI, l'expert virtuel en efficacité énergétique industrielle et décarbonation dédié à l'usine pharmaceutique d'Opalia Recordati en Tunisie (située à l'Ariana).
-Ton interlocuteur est Adnen (Energy Manager) ou l'équipe de direction d'Opalia.
+Ton interlocuteur actuel est ${activeUserName} (occupant le rôle de "${activeUserRole}", joignable à l'adresse email "${activeUserEmail}"). Adresse-toi directement à lui par son prénom/nom s'il y a lieu de façon professionnelle, polie et chaleureuse.
 Répond exclusivement en français de façon extrêmement technique, pragmatique, polie, professionnelle et orientée action industrielle.
 Propose des calculs précis, des astuces d'optimisation basées sur les protocoles pharmaceutiques réglementaires (ex: HVAC en zones de confinement stériles, maintien du gradient de pression des salles blanches de classe A, B, C, D, compression de l'eau purifiée SONEDE pour injectables, fonctionnement des chaudières à vapeur gasoil pour la stérilisation en autoclave).
 
-Utilise le contexte des données de simulation actuelles s'il est fourni:${metricsContext}
+Utilise le contexte des données de l'utilisateur actif s'il est fourni :${userContext}
+Utilise le contexte des données de simulation actuelles s'il est fourni :${metricsContext}
 Sois précis sur les tarifs d'énergie en Tunisie (Tarifs d'électricité STEG moyenne tension, eau SONEDE, gasoil industriel).
 Suggère des optimisations basées sur les 15 armoires électriques (relevés de compteurs), en valorisant la réduction de l'empreinte carbone (ANME - Agence Nationale pour la Maîtrise de l'Énergie).
 
 Formate ta réponse en utilisant du Markdown de manière très structurée avec des puces élégantes et sans formules verbeuses d'introduction ou de conclusion d'IA générique.`;
+
+  // Define tools for function calling (AI Agent)
+  const getCabinetsDecl = {
+    name: 'getCabinets',
+    description: "Récupère la liste complète des 15 compteurs divisionnaires de l'usine d'Opalia (électricité, eau, gasoil) avec les index actuels, consommations, criticité et secteurs.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {},
+    },
+  };
+
+  const getAuditTrailDecl = {
+    name: 'getAuditTrail',
+    description: "Récupère le registre d'Audit Trail certifié FDA 21 CFR Part 11 de l'usine contenant l'historique complet des actions, modifications d'index et signatures de sécurité.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {},
+    },
+  };
+
+  const getQueueStatusDecl = {
+    name: 'getQueueStatus',
+    description: "Récupère l'état de la file d'attente hors-ligne de synchronisation réseau (Google Sheets, Gmail, Calendar) et indique si la fibre d'Opalia est actuellement coupée ou en ligne.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {},
+    },
+  };
+
+  const getWeatherDecl = {
+    name: 'getWeather',
+    description: "Récupère la météo actuelle et les prévisions en temps réel à l'Ariana, Tunis (température, humidité, vent, précipitations) pour analyser l'impact du climat extérieur sur l'HVAC et les CTA d'Opalia.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {},
+    },
+  };
+
+  const getCalendarEventsDecl = {
+    name: 'getCalendarEvents',
+    description: "Récupère la liste des événements programmés dans l'agenda Google Calendar d'Opalia pour identifier les inspections de maintenance curative, audits ANME, et réunions de coordination.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        calendarId: {
+          type: Type.STRING,
+          description: "L'identifiant de l'agenda (par défaut: 'primary')"
+        }
+      },
+    },
+  };
+
+  const createCalendarEventDecl = {
+    name: 'createCalendarEvent',
+    description: "Programme ou ajoute un nouvel événement d'optimisation, de maintenance d'armoire ou d'audit d'efficacité énergétique dans Google Calendar.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        summary: {
+          type: Type.STRING,
+          description: "Le titre court de l'événement (ex: 'Révision HVAC - Armoire 02')"
+        },
+        description: {
+          type: Type.STRING,
+          description: "Description technique détaillée ou ordre du jour de l'intervention"
+        },
+        startDateTime: {
+          type: Type.STRING,
+          description: "Date et heure de début au format ISO 8601 (ex: '2026-06-11T10:00:00+01:00')"
+        },
+        endDateTime: {
+          type: Type.STRING,
+          description: "Date et heure de fin au format ISO 8601 (ex: '2026-06-11T11:00:00+01:00')"
+        },
+        calendarId: {
+          type: Type.STRING,
+          description: "L'identifiant de l'agenda (par défaut: 'primary')"
+        }
+      },
+      required: ["summary", "startDateTime", "endDateTime"]
+    },
+  };
+
+  const sendEmailDecl = {
+    name: 'sendEmail',
+    description: "Envoie un rapport technique d'efficacité énergétique, une alerte d'effacement de charge STEG ou un résumé opérationnel par email via Gmail au format HTML.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        to: {
+          type: Type.STRING,
+          description: "Destinataire du rapport d'incident ou de synthèse (ex: 'selim.manai@insat.ucar.tn')"
+        },
+        subject: {
+          type: Type.STRING,
+          description: "Objet de l'email technique"
+        },
+        htmlBody: {
+          type: Type.STRING,
+          description: "Le corps html de l'email rédigé de façon professionnelle et détaillée en français"
+        }
+      },
+      required: ["to", "subject", "htmlBody"]
+    }
+  };
+
+  const readGoogleSheetDecl = {
+    name: 'readGoogleSheet',
+    description: "Lit les données d'index d'usine ou de suivi d'énergie à partir de n'importe quel onglet ou cellule spécifiée dans Google Sheets.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        spreadsheetId: {
+          type: Type.STRING,
+          description: "L'identifiant Google Sheets exact du document d'usine"
+        },
+        range: {
+          type: Type.STRING,
+          description: "La plage de cellules ou l'onglet à consulter (ex: 'Compteurs_Index!A1:H30')"
+        }
+      },
+      required: ["spreadsheetId", "range"]
+    }
+  };
+
+  const updateGoogleSheetDecl = {
+    name: 'updateGoogleSheet',
+    description: "Met à jour ou écrit des consommations d'énergie ou d'index dans de nouvelles lignes, colonnes ou cellules de rapports Google Sheets.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        spreadsheetId: {
+          type: Type.STRING,
+          description: "L'identifiant de la feuille Google Sheets"
+        },
+        range: {
+          type: Type.STRING,
+          description: "La plage de destination (ex: 'Compteurs_Index!A2')"
+        },
+        values: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.STRING
+            }
+          },
+          description: "Tableau 2D contenant des valeurs à insérer."
+        },
+        description: {
+          type: Type.STRING,
+          description: "Description de la transaction pour traçabilité (ex: 'Ajustement index par l'IA')"
+        }
+      },
+      required: ["spreadsheetId", "range", "values"]
+    }
+  };
+
+  const createGoogleSheetDecl = {
+    name: 'createGoogleSheet',
+    description: "Crée un tableur Google Sheets vierge au sein de l'organisation Opalia pour démarrer un nouveau relevé énergétique de secours.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        title: {
+          type: Type.STRING,
+          description: "Titre explicatif de la feuille Google Sheets"
+        }
+      },
+      required: ["title"]
+    }
+  };
 
   if (ai) {
     try {
@@ -137,7 +333,7 @@ Formate ta réponse en utilisant du Markdown de manière très structurée avec 
         parts: [{ text: msg.content }]
       }));
 
-      // Call Gemini SDK inside the resilient retry wrapper
+      // Call Gemini SDK inside the resilient retry wrapper, declaring our Agent Tools
       const response = await retryWithBackoff(async () => {
         const parts: any[] = [
           { text: `${systemPrompt}\n\nHistorique de chat et dernière question:\n${JSON.stringify(messages)}\n\nDonne une réponse de consultant industriel sur la dernière question, en analysant attentivement l'image si elle a été fournie.` }
@@ -153,9 +349,273 @@ Formate ta réponse en utilisant du Markdown de manière très structurée avec 
           ],
           config: {
             temperature: 0.7,
+            tools: [{ 
+              functionDeclarations: [
+                getCabinetsDecl, 
+                getAuditTrailDecl, 
+                getQueueStatusDecl,
+                getWeatherDecl,
+                getCalendarEventsDecl,
+                createCalendarEventDecl,
+                sendEmailDecl,
+                readGoogleSheetDecl,
+                updateGoogleSheetDecl,
+                createGoogleSheetDecl
+              ] 
+            }]
           }
         });
       });
+
+      // Check if Gemini requested function calls (AI Agent execution)
+      const functionCalls = response.functionCalls;
+      if (functionCalls && functionCalls.length > 0) {
+        console.log('[Gemini Agent Tool Call] L\'agent a invoqué des outils :', functionCalls);
+        const results: any[] = [];
+        const token = req.headers.authorization;
+
+        for (const call of functionCalls) {
+          const { name, args } = call;
+          if (name === 'getCabinets') {
+            const cabinetsData = loadCabinetsFromDB();
+            results.push({ tool: name, count: cabinetsData.length, data: cabinetsData });
+          } else if (name === 'getAuditTrail') {
+            const auditData = loadAuditTrailFromDB();
+            results.push({ tool: name, count: auditData.length, data: auditData.slice(0, 10) }); // Send top 10 logs to keep context optimal
+          } else if (name === 'getQueueStatus') {
+            const queueItems = offlineQueue.map(item => ({
+              id: item.id,
+              range: item.range,
+              timestamp: item.timestamp,
+              attempts: item.attempts,
+              lastError: item.lastError,
+              description: item.description
+            }));
+            results.push({ 
+              tool: name, 
+              data: { 
+                isOffline: isSimulatedOffline, 
+                queueCount: offlineQueue.length, 
+                items: queueItems 
+              } 
+            });
+          } else if (name === 'getWeather') {
+            try {
+              const url = 'https://api.open-meteo.com/v1/forecast?latitude=36.8624&longitude=10.1956&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,wind_speed_10m&timezone=Africa/Tunis';
+              const response = await fetch(url);
+              const data = await response.json();
+              results.push({ tool: name, success: true, data });
+            } catch (err: any) {
+              results.push({ tool: name, success: false, error: err.message });
+            }
+          } else if (name === 'getCalendarEvents') {
+            if (!token) {
+              results.push({ tool: name, success: false, error: "L'autorisation Google (OAuth) est manquante. Veuillez d'abord vous connecter dans l'onglet Synchronisation." });
+            } else {
+              try {
+                const targetCalendarId = args.calendarId ? encodeURIComponent(args.calendarId as string) : 'primary';
+                const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${targetCalendarId}/events?orderBy=startTime&singleEvents=true&maxResults=15`, {
+                  headers: { Authorization: token }
+                });
+                const data = await response.json();
+                results.push({ tool: name, success: response.ok, data });
+              } catch (err: any) {
+                results.push({ tool: name, success: false, error: err.message });
+              }
+            }
+          } else if (name === 'createCalendarEvent') {
+            const strictApprovalEnabled = req.body.strictApproval !== false;
+            if (strictApprovalEnabled) {
+              console.log('[FDA Block] Transmetteur bloqué pour approbation humaine : createCalendarEvent');
+              results.push({
+                tool: name,
+                success: false,
+                requiresHumanSignature: true,
+                args: args,
+                error: "DÉPART SUSPENDU : Le Mode d'Approbation Strict FDA 21 CFR Part 11 est activé. Un badge de signature électronique interactive sollicite votre accord dans le panneau de discussion."
+              });
+            } else if (!token) {
+              results.push({ tool: name, success: false, error: "L'autorisation Google (OAuth) est manquante. Veuillez d'abord vous connecter dans l'onglet Synchronisation." });
+            } else {
+              try {
+                const { summary, description, startDateTime, endDateTime, calendarId } = args as any;
+                const eventBody = {
+                  summary,
+                  description,
+                  start: { dateTime: startDateTime, timeZone: 'Africa/Tunis' },
+                  end: { dateTime: endDateTime, timeZone: 'Africa/Tunis' },
+                  reminders: { useDefault: true }
+                };
+                const targetCalendarId = calendarId ? encodeURIComponent(calendarId) : 'primary';
+                const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${targetCalendarId}/events`, {
+                  method: 'POST',
+                  headers: {
+                    Authorization: token,
+                    'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify(eventBody)
+                });
+                const data = await response.json();
+                results.push({ tool: name, success: response.ok, data });
+              } catch (err: any) {
+                results.push({ tool: name, success: false, error: err.message });
+              }
+            }
+          } else if (name === 'sendEmail') {
+            const strictApprovalEnabled = req.body.strictApproval !== false;
+            if (strictApprovalEnabled) {
+              console.log('[FDA Block] Transmetteur bloqué pour approbation humaine : sendEmail');
+              results.push({
+                tool: name,
+                success: false,
+                requiresHumanSignature: true,
+                args: args,
+                error: "DÉPART SUSPENDU : Le Mode d'Approbation Strict FDA 21 CFR Part 11 est activé. Un badge de signature électronique interactive sollicite votre accord dans le panneau de discussion."
+              });
+            } else if (!token) {
+              results.push({ tool: name, success: false, error: "L'autorisation Google (OAuth) est manquante. Veuillez d'abord vous connecter dans l'onglet Synchronisation." });
+             } else {
+              try {
+                const { to, subject, htmlBody } = args as any;
+                const emailLines = [
+                  `To: ${to}`,
+                  `Subject: =?utf-8?B?${Buffer.from(subject).toString('base64')}?=`,
+                  'MIME-Version: 1.0',
+                  'Content-Type: text/html; charset=utf-8',
+                  '',
+                  htmlBody
+                ];
+                const emailContent = emailLines.join('\r\n');
+                const base64Safe = Buffer.from(emailContent)
+                  .toString('base64')
+                  .replace(/\+/g, '-')
+                  .replace(/\//g, '_')
+                  .replace(/=+$/, '');
+                const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+                  method: 'POST',
+                  headers: {
+                    Authorization: token,
+                    'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify({ raw: base64Safe })
+                });
+                const data = await response.json();
+                results.push({ tool: name, success: response.ok, data });
+              } catch (err: any) {
+                results.push({ tool: name, success: false, error: err.message });
+              }
+            }
+          } else if (name === 'readGoogleSheet') {
+            if (!token) {
+              results.push({ tool: name, success: false, error: "L'autorisation Google (OAuth) est manquante. Veuillez d'abord vous connecter dans l'onglet Synchronisation." });
+            } else {
+              try {
+                const { spreadsheetId, range } = args as any;
+                const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`, {
+                  headers: { Authorization: token },
+                });
+                const data = await response.json();
+                results.push({ tool: name, success: response.ok, data });
+              } catch (err: any) {
+                results.push({ tool: name, success: false, error: err.message });
+              }
+            }
+          } else if (name === 'updateGoogleSheet') {
+            if (!token) {
+              results.push({ tool: name, success: false, error: "L'autorisation Google (OAuth) est manquante. Veuillez d'abord vous connecter dans l'onglet Synchronisation." });
+            } else {
+              try {
+                const { spreadsheetId, range, values, description } = args as any;
+                
+                if (isSimulatedOffline) {
+                  const item: QueueItem = {
+                    id: 'Q-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+                    spreadsheetId,
+                    range,
+                    values,
+                    token,
+                    timestamp: new Date().toISOString(),
+                    attempts: 0,
+                    lastError: 'Simulation de panne réseau d\'usine (Coupure Fibre test).',
+                    description: description || `Mise à jour de la plage ${range} par l'agent IA`
+                  };
+                  offlineQueue.push(item);
+                  saveQueueToFile();
+                  results.push({ tool: name, success: true, offlineQueued: true, message: "L'action a été stockée hors-ligne car la fibre d'Opalia est simulée déconnectée." });
+                } else {
+                  const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}?valueInputOption=USER_ENTERED`, {
+                    method: 'PUT',
+                    headers: { 
+                      Authorization: token,
+                      'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                      range,
+                      majorDimension: 'ROWS',
+                      values
+                    })
+                  });
+                  const data = await response.json();
+                  results.push({ tool: name, success: response.ok, data });
+                }
+              } catch (err: any) {
+                results.push({ tool: name, success: false, error: err.message });
+              }
+            }
+          } else if (name === 'createGoogleSheet') {
+            if (!token) {
+              results.push({ tool: name, success: false, error: "L'autorisation Google (OAuth) est manquante. Veuillez d'abord vous connecter dans l'onglet Synchronisation." });
+            } else {
+              try {
+                const { title } = args as any;
+                const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets`, {
+                  method: 'POST',
+                  headers: {
+                    Authorization: token,
+                    'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify({
+                    properties: {
+                      title: title || 'Opalia Recordati - Rapport d\'IA'
+                    }
+                  })
+                });
+                const data = await response.json();
+                results.push({ tool: name, success: response.ok, data });
+              } catch (err: any) {
+                results.push({ tool: name, success: false, error: err.message });
+              }
+            }
+          }
+        }
+
+        // Send results back to Gemini for the final agentic response
+        console.log(`[Gemini Agent Tool Success] Données des outils d'usine récupérées. Envoi de l'analyse finale...`);
+        const finalAgentResponse = await retryWithBackoff(async () => {
+          const contentText = `L'utilisateur a posé une question nécessitant l'accès au système central d'Opalia.
+Tu as demandé l'exécution d'un outil d'usine et voici les données exactes retournées directement par nos serveurs locaux :
+${JSON.stringify(results)}
+
+Rédige à présent ta conclusion technique finale à l'attention de ${activeUserName}, ${activeUserRole} d'Opalia Ariana. Base ta réponse exclusivement sur ces chiffres réels en temps réel.`;
+
+          return await ai!.models.generateContent({
+            model: 'gemini-3.5-flash',
+            contents: [
+              { role: 'user', parts: [{ text: `${systemPrompt}\n\nDonnées de l'usine :\n${contentText}\n\nQuestion de ${activeUserName} :\n${userQuery}` }] }
+            ],
+            config: {
+              temperature: 0.5,
+            }
+          });
+        });
+
+        const finalReplyText = finalAgentResponse.text || getRandomFallbackMessage();
+        const blockedCall = results.find(r => r.requiresHumanSignature);
+        return res.json({ 
+          response: finalReplyText,
+          pendingAction: blockedCall ? { name: blockedCall.tool, args: blockedCall.args } : null
+        });
+      }
 
       const replyText = response.text || getRandomFallbackMessage();
       return res.json({ response: replyText });
@@ -180,6 +640,45 @@ J'ai détecté votre image jointe (représentant typiquement un compteur d'eau S
 3. **Recommandation Locale** : Pour un diagnostic optimal, gardez les optiques et l'éclairage de l'armoire propres pour une précision GAMP 5.
 
 *Veuillez lier votre clé GEMINI_API_KEY dans les paramètres de l'application pour activer l'analyse informatique multimodal à forte valeur de vision par ordinateur.*`;
+    } else if (mockResponsesPromptRegex.includes('armoire') || mockResponsesPromptRegex.includes('compteur') || mockResponsesPromptRegex.includes('index') || mockResponsesPromptRegex.includes('relevé') || mockResponsesPromptRegex.includes('cab-') || mockResponsesPromptRegex.includes('wat-') || mockResponsesPromptRegex.includes('dsl-')) {
+      const activeCabs = loadCabinetsFromDB();
+      const count = activeCabs.length;
+      computedReply = `**[Rapport d'Agent Virtuel GreenOpsAI - Interrogation DB Réussie]**
+      
+Je viens d'auditer notre base de données locale d'Opalia Recordati en temps-réel (simulé). Voici mon analyse analytique :
+
+* **Taille de l'infrastructure de comptage** : **${count} compteurs divisionnaires** actifs sous surveillance continue.
+* **Alertes de Dérive d'Index & Criticalité** :
+  ${activeCabs.filter(c => c.status === 'Rouge' || c.status === 'Orange').map(c => `- **${c.name}** (${c.id} - ${c.area}) : Statut **${c.status}**, index actuel à **${c.endIndex}** (${c.consumption.toLocaleString('fr-FR')} ${c.unit} consommés sous multiplier x${c.multiplier}).`).join('\n  ')}
+
+* **Optimisation Recommandée** : L'**Armoire 02 (HVAC Zones Classées A/B)** présente la consommation cumulée la plus lourde. C'est le gisement n°1 d'économie. Un décalage de cycle ou une adaptation de débit d'aspiration d'air pendant la nuit peut faire économiser **8 400 TND/mois** de frais d'exploitation.`;
+    } else if (mockResponsesPromptRegex.includes('audit') || mockResponsesPromptRegex.includes('journal') || mockResponsesPromptRegex.includes('log') || mockResponsesPromptRegex.includes('historique')) {
+      const activeTrails = loadAuditTrailFromDB();
+      computedReply = `**[Rapport d'Agent Virtuel GreenOpsAI - Option Audit Trail CFR Part 11]**
+      
+J'ai extrait avec succès les derniers enregistrements cryptographiques du registre de traçabilité de l'usine d'Ariana :
+
+* **Total des Événements Consignés** : **${activeTrails.length} signatures actives** scellées.
+* **Dernière transaction détectée** :
+  - **Identifiant** : \`${activeTrails[0]?.id}\`
+  - **Date Tunis** : \`${activeTrails[0]?.timestampTunis}\`
+  - **Auteur** : \`${activeTrails[0]?.actor}\` (\`${activeTrails[0]?.role}\`)
+  - **Événement** : \`${activeTrails[0]?.eventType}\` sur **${activeTrails[0]?.target}**
+  - **Ajustement d'Index** : de \`${activeTrails[0]?.previousValue}\` vers \`${activeTrails[0]?.newValue}\`
+  - **Statut de conformité** : \`${activeTrails[0]?.status}\`
+  - **Empreinte SHA256** : \`${activeTrails[0]?.hash}\`
+
+*Toute modification ultérieure d'index sur l'onglet 'Saisie' génère automatiquement un bloc scellé similaire.*`;
+    } else if (mockResponsesPromptRegex.includes('queue') || mockResponsesPromptRegex.includes('file') || mockResponsesPromptRegex.includes('attente') || mockResponsesPromptRegex.includes('fibre') || mockResponsesPromptRegex.includes('connexion')) {
+      computedReply = `**[Rapport d'Agent Virtuel GreenOpsAI - État du Réseau Opalia Central]**
+      
+L'agent a interrogé le statut d'intégrité du réseau local d'Opalia Ariana :
+
+- **Fibre Optique d'Opalia** : ${isSimulatedOffline ? '🔴 COUPÉE (Fibre simulée hors-ligne, stockage tampon)' : '🟢 ACTIVE (Liaison montante Google Cloud fluide)'}
+- **File d'Attente de Secours (Offline Cache)** : **${offlineQueue.length} requêtes** en attente dans la file tampon locale.
+- **Détail du Buffer** : ${offlineQueue.length === 0 ? "Le système est complètement synchronisé avec Google Sheets en temps réel." : `Il reste des écritures en suspens destinées à l'armoire et à l'onglet 'Compteurs_Index'.`}
+
+*Vous pouvez forcer une tentative de livraison de la queue ou simuler des pannes de connexion au besoin depuis l'onglet de synchronisation.*`;
     } else if (mockResponsesPromptRegex.includes('hvac') || mockResponsesPromptRegex.includes('climatisation') || mockResponsesPromptRegex.includes('zone blanche')) {
       computedReply = `**[Analyse GreenOpsAI - CTA & Salles Blanches d'Opalia]**
 L'HVAC représente environ 45% de la facture électrique globale d'Opalia Recordati.
@@ -197,7 +696,7 @@ La vapeur d'eau d'Opalia est indispensable pour les autoclaves et le double enve
 2. **Calorifugeage des vannes** : L'installation de matelas isolants thermiques sur l'ensemble du réseau vapeur haute pression (Armoire Vapeur / Chaufferie) permettra d'économiser **1.4 tonne de CO₂** mensuellement.`;
     } else {
       computedReply = `**[Analyse d'Expert GreenOpsAI - Tunisie]**
-Merci Adnen pour votre question sur l'optimisation d'Opalia Recordati.
+Merci **${activeUserName}** pour votre question sur l'optimisation d'Opalia Recordati en tant que **${activeUserRole}**.
 
 En intégrant les relevés énergétiques des 15 armoires électriques :
 * **Dérive de Consommation** : L'**Armoire 8 (Ligne Pommade)** consomme anormalement 13% d'électricité en plus ce trimestre, suggérant un encrassement mécanique majeur des agitateurs ou moteurs de brassage.
@@ -885,14 +1384,40 @@ app.post('/api/gmail/send', async (req, res) => {
 // GOOGLE CALENDAR INTEGRATION API REAL PROXIES
 // ==========================================
 
-app.get('/api/calendar/events', async (req, res) => {
+app.get('/api/calendar/list', async (req, res) => {
   const token = req.headers.authorization;
   if (!token) {
     return res.status(401).json({ error: 'Pas d\'autorisation fournie.' });
   }
 
   try {
-    const response = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events?orderBy=startTime&singleEvents=true&maxResults=15', {
+    const response = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList', {
+      headers: { Authorization: token }
+    });
+
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      return res.status(response.status).json({ error: 'Erreur Google Calendar List', details: errData });
+    }
+
+    const data = await response.json();
+    return res.json(data);
+  } catch (error: any) {
+    console.error('Calendar List API Error:', error);
+    return res.status(500).json({ error: 'Erreur de connexion avec l\'API Google Calendar', details: error.message });
+  }
+});
+
+app.get('/api/calendar/events', async (req, res) => {
+  const token = req.headers.authorization;
+  if (!token) {
+    return res.status(401).json({ error: 'Pas d\'autorisation fournie.' });
+  }
+
+  const calendarId = req.query.calendarId ? encodeURIComponent(req.query.calendarId as string) : 'primary';
+
+  try {
+    const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events?orderBy=startTime&singleEvents=true&maxResults=15`, {
       headers: { Authorization: token }
     });
 
@@ -915,10 +1440,12 @@ app.post('/api/calendar/events', async (req, res) => {
     return res.status(401).json({ error: 'Pas d\'autorisation fournie.' });
   }
 
-  const { summary, description, startDateTime, endDateTime } = req.body;
+  const { summary, description, startDateTime, endDateTime, calendarId } = req.body;
   if (!summary || !startDateTime || !endDateTime) {
     return res.status(400).json({ error: 'summary, startDateTime et endDateTime requis.' });
   }
+
+  const targetCalendarId = calendarId ? encodeURIComponent(calendarId) : 'primary';
 
   try {
     const eventBody = {
@@ -937,7 +1464,7 @@ app.post('/api/calendar/events', async (req, res) => {
       }
     };
 
-    const response = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
+    const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${targetCalendarId}/events`, {
       method: 'POST',
       headers: {
         Authorization: token,

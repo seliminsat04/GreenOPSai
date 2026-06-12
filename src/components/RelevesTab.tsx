@@ -5,9 +5,144 @@ import {
   Database, Droplets, Flame, Zap, HelpCircle,
   ChevronDown, ChevronUp, Lock, Shield, Fingerprint, History, Check
 } from 'lucide-react';
+import { 
+  ResponsiveContainer, 
+  AreaChart, 
+  Area, 
+  XAxis, 
+  YAxis, 
+  Tooltip as ChartTooltip, 
+  CartesianGrid 
+} from 'recharts';
 import { Cabinet } from '../types';
 import { playSound } from '../utils/audio';
 import { getAccessToken } from '../utils/googleAuth';
+
+// Deterministic generator for 6-month historical consumption data based on the cabinet parameters
+const get6MonthHistory = (cabinet: Cabinet) => {
+  const currentVal = cabinet.consumption > 0 ? cabinet.consumption : (cabinet.endIndex - cabinet.startIndex) * cabinet.multiplier;
+  const baseVal = currentVal > 0 ? currentVal : 1800;
+  
+  // Seasonal factors (e.g. higher consumption in winter/summer)
+  const hash = cabinet.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const offset = (hash % 8) / 100 - 0.04; // -0.04 to +0.04 offset
+  
+  const seasonalFactors = [1.08 + offset, 1.12, 1.02, 0.94 - offset, 0.92, 1.0];
+  const months = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin'];
+  
+  return months.map((month, idx) => {
+    const noise = Math.sin(idx + hash) * 0.05;
+    const factor = seasonalFactors[idx] + noise;
+    const value = Math.round(baseVal * factor);
+    return {
+      month,
+      cons: value,
+    };
+  });
+};
+
+const CabinetSparkline: React.FC<{ cabinet: Cabinet; themeMode: 'dark' | 'light' }> = ({ cabinet, themeMode }) => {
+  const historyData = React.useMemo(() => get6MonthHistory(cabinet), [cabinet]);
+  
+  const colors = {
+    electricite: {
+      stroke: '#d97706', // amber-600
+      gradient: '#f59e0b',
+    },
+    eau: {
+      stroke: '#2563eb', // blue-600
+      gradient: '#3b82f6',
+    },
+    gasoil: {
+      stroke: '#ea580c', // orange-600
+      gradient: '#f97316',
+    },
+  }[cabinet.category] || {
+    stroke: '#10b981', // emerald-500
+    gradient: '#10b981',
+  };
+
+  const isLight = themeMode === 'light';
+
+  return (
+    <div className={`p-4 rounded-2xl border transition-all duration-200 ${
+      isLight 
+        ? 'bg-slate-50/50 border-slate-250/50 shadow-inner' 
+        : 'bg-slate-950/45 border-slate-850/60 shadow-inner'
+    }`}>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 mb-3">
+        <div>
+          <span className="text-[9px] tracking-wider uppercase font-mono font-bold text-slate-400 dark:text-slate-500 block">
+            Analyse de Charge Mensuelle (GAMP 5 • FDA)
+          </span>
+          <h5 className={`text-xs font-bold font-sans flex items-center gap-1.5 ${isLight ? 'text-slate-800' : 'text-slate-150'}`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${cabinet.category === 'electricite' ? 'bg-amber-500' : cabinet.category === 'eau' ? 'bg-blue-500' : 'bg-orange-500'}`}></span>
+            6 derniers mois de consommation : <span className="font-mono text-emerald-500">{cabinet.id}</span>
+          </h5>
+        </div>
+        <div className="text-left sm:text-right">
+          <span className="text-[9px] text-slate-400 block font-sans">Moyenne Estimée</span>
+          <span className={`text-[11px] font-mono font-bold ${
+            cabinet.category === 'electricite' ? 'text-amber-500' : cabinet.category === 'eau' ? 'text-blue-500' : 'text-orange-500'
+          }`}>
+            {Math.round(historyData.reduce((acc, d) => acc + d.cons, 0) / 6).toLocaleString('fr-FR')} {cabinet.unit} / mois
+          </span>
+        </div>
+      </div>
+
+      <div className="h-28 w-full mt-1.5">
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={historyData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+            <defs>
+              <linearGradient id={`grad-${cabinet.id}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor={colors.gradient} stopOpacity={0.25}/>
+                <stop offset="95%" stopColor={colors.gradient} stopOpacity={0.01}/>
+              </linearGradient>
+            </defs>
+            <CartesianGrid 
+              strokeDasharray="3 3" 
+              stroke={isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.03)'} 
+              vertical={false} 
+            />
+            <XAxis 
+              dataKey="month" 
+              tickLine={false} 
+              axisLine={false}
+              tick={{ fill: isLight ? '#475569' : '#94a3b8', fontSize: 9, fontFamily: 'monospace' }}
+            />
+            <YAxis 
+              tickLine={false} 
+              axisLine={false}
+              tick={{ fill: isLight ? '#475569' : '#94a3b8', fontSize: 9, fontFamily: 'monospace' }}
+              tickFormatter={(val) => `${val}`}
+            />
+            <ChartTooltip
+              contentStyle={{
+                backgroundColor: isLight ? '#ffffff' : '#090d16',
+                borderColor: isLight ? '#cbd5e1' : '#1e293b',
+                borderRadius: '12px',
+                fontSize: '11px',
+                color: isLight ? '#0f172a' : '#f1f5f9',
+                boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+                fontFamily: 'sans-serif'
+              }}
+              formatter={(value: any) => [`${value.toLocaleString('fr-FR')} ${cabinet.unit}`, 'Consommation']}
+              labelStyle={{ fontWeight: 'bold', color: isLight ? '#1e293b' : '#cbd5e1' }}
+            />
+            <Area 
+              type="monotone" 
+              dataKey="cons" 
+              stroke={colors.stroke} 
+              strokeWidth={2.5}
+              fillOpacity={1} 
+              fill={`url(#grad-${cabinet.id})`} 
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+};
 
 interface RelevesTabProps {
   releveTab: 'electricite' | 'eau' | 'gasoil';
@@ -36,6 +171,7 @@ export const RelevesTab: React.FC<RelevesTabProps> = ({
 }) => {
 
   const [expandedCardId, setExpandedCardId] = React.useState<string | null>(null);
+  const [activeHistoryCabinetId, setActiveHistoryCabinetId] = React.useState<string | null>(null);
 
   // Track starting points of values to generate real delta records for audit logs on save
   const originalCabinetsRef = React.useRef<Cabinet[]>([]);
@@ -465,62 +601,95 @@ export const RelevesTab: React.FC<RelevesTabProps> = ({
                     filtered.map(c => {
                       const isError = c.endIndex < c.startIndex;
                       const hasChanged = c.endIndex > c.startIndex;
+                      const isHistoryActive = activeHistoryCabinetId === c.id;
 
                       return (
-                        <tr 
-                          key={c.id} 
-                          className="hover:bg-slate-50/50 dark:hover:bg-slate-950/20 transition-colors"
-                        >
-                          {/* ID box */}
-                          <td className="py-4 px-4 font-mono font-bold text-[10px] text-slate-400">
-                            {c.id}
-                          </td>
-                          
-                          {/* Name & desc */}
-                          <td className="py-4 px-4">
-                            <span className="font-bold text-slate-800 dark:text-slate-200 block text-xs">{c.name}</span>
-                            <span className="text-[10px] text-slate-400 font-sans block mt-0.5 truncate max-w-xs">{c.description}</span>
-                          </td>
+                        <React.Fragment key={c.id}>
+                          <tr className="hover:bg-slate-50/50 dark:hover:bg-slate-950/20 transition-colors">
+                            {/* ID box */}
+                            <td className="py-4 px-4 font-mono font-bold text-[10px] text-slate-400">
+                              {c.id}
+                            </td>
+                            
+                            {/* Name & desc */}
+                            <td className="py-4 px-4">
+                              <div className="flex items-center space-x-2">
+                                <span className="font-bold text-slate-800 dark:text-slate-200 block text-xs">{c.name}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    playSound('click');
+                                    setActiveHistoryCabinetId(isHistoryActive ? null : c.id);
+                                  }}
+                                  title="Consulter l'historique de consommation"
+                                  className={`inline-flex items-center justify-center p-1 rounded-lg transition-all cursor-pointer ${
+                                    isHistoryActive
+                                      ? 'bg-emerald-500/10 text-[#79b823] dark:text-emerald-400 border border-emerald-500/25 shadow-xs'
+                                      : 'text-slate-400 hover:text-slate-800 dark:hover:text-slate-250 hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                                  }`}
+                                >
+                                  <History className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                              <span className="text-[10px] text-slate-400 font-sans block mt-0.5 truncate max-w-sm">{c.description}</span>
+                            </td>
 
-                          {/* Multiplier */}
-                          <td className="py-4 px-4 font-mono text-slate-400">
-                            x{c.multiplier}
-                          </td>
+                            {/* Multiplier */}
+                            <td className="py-4 px-4 font-mono text-slate-400">
+                              x{c.multiplier}
+                            </td>
 
-                          {/* Start index (read only) */}
-                          <td className="py-4 px-4 text-right font-mono font-bold font-medium">
-                            {c.startIndex.toLocaleString('fr-FR')}
-                          </td>
+                            {/* Start index (read only) */}
+                            <td className="py-4 px-4 text-right font-mono font-bold">
+                              {c.startIndex.toLocaleString('fr-FR')}
+                            </td>
 
-                          {/* End index (input box) */}
-                          <td className="py-4 px-4">
-                            <input 
-                              type="number" 
-                              value={c.endIndex}
-                              onChange={(e) => handleIndexChange(c.id, e.target.value)}
-                              className={`w-full py-1.5 px-2 rounded-lg border font-mono font-bold text-center text-xs focus:outline-none transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
-                                isError 
-                                  ? 'bg-red-500/10 border-red-400 text-red-500 focus:border-red-500' 
-                                  : hasChanged 
-                                  ? 'bg-emerald-500/5 border-emerald-400/80 text-emerald-600 dark:text-emerald-400 focus:border-emerald-500'
-                                  : 'bg-white dark:bg-slate-950 border-slate-250 dark:border-slate-800'
-                              }`}
-                            />
-                            {isError && (
-                              <span className="text-[9px] text-red-500 font-medium block mt-1 leading-none">
-                                Index négatif !
+                            {/* End index (input box) */}
+                            <td className="py-4 px-4">
+                              <input 
+                                type="number" 
+                                value={c.endIndex}
+                                onChange={(e) => handleIndexChange(c.id, e.target.value)}
+                                className={`w-full py-1.5 px-2 rounded-lg border font-mono font-bold text-center text-xs focus:outline-none transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                                  isError 
+                                    ? 'bg-red-500/10 border-red-400 text-red-500 focus:border-red-500' 
+                                    : hasChanged 
+                                    ? 'bg-emerald-500/5 border-emerald-400/80 text-[#79b823] dark:text-emerald-550 focus:border-emerald-500'
+                                    : 'bg-white dark:bg-slate-950 border-slate-250 dark:border-slate-800'
+                                }`}
+                              />
+                              {isError && (
+                                <span className="text-[9px] text-red-500 font-medium block mt-1 leading-none">
+                                  Index négatif !
+                                </span>
+                              )}
+                            </td>
+
+                            {/* Calculated consumption output */}
+                            <td className="py-4 px-4 text-right font-mono font-bold text-xs">
+                              <span className={isError ? 'text-red-500' : hasChanged ? 'text-emerald-500' : 'text-slate-300'}>
+                                {isError ? "Invalide" : c.consumption.toLocaleString('fr-FR') + " " + c.unit}
                               </span>
-                            )}
-                          </td>
+                            </td>
+                          </tr>
 
-                          {/* Calculated consumption output */}
-                          <td className="py-4 px-4 text-right font-mono font-bold text-xs">
-                            <span className={isError ? 'text-red-500' : hasChanged ? 'text-emerald-500' : 'text-slate-300'}>
-                              {isError ? "Invalide" : c.consumption.toLocaleString('fr-FR') + " " + c.unit}
-                            </span>
-                          </td>
-
-                        </tr>
+                          {/* Collapsible history row under active cabinet */}
+                          {isHistoryActive && (
+                            <tr className="bg-slate-50/15 dark:bg-slate-950/20">
+                              <td colSpan={6} className="p-3 border-t border-b border-slate-200/40 dark:border-slate-850/60">
+                                <motion.div
+                                  initial={{ opacity: 0, height: 0 }}
+                                  animate={{ opacity: 1, height: 'auto' }}
+                                  exit={{ opacity: 0, height: 0 }}
+                                  transition={{ duration: 0.18 }}
+                                  className="overflow-hidden"
+                                >
+                                  <CabinetSparkline cabinet={c} themeMode={themeMode} />
+                                </motion.div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
                       );
                     })
                   )}
@@ -567,7 +736,30 @@ export const RelevesTab: React.FC<RelevesTabProps> = ({
                               </span>
                             )}
                           </div>
-                          <span className="font-bold text-slate-800 dark:text-slate-200 block text-xs mt-1 truncate">{c.name}</span>
+                          
+                          <div className="flex items-center space-x-2 mt-1 min-w-0">
+                            <span className="font-bold text-slate-800 dark:text-slate-200 text-xs truncate max-w-[185px] block">{c.name}</span>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                playSound('click');
+                                const targetActive = activeHistoryCabinetId === c.id;
+                                setActiveHistoryCabinetId(targetActive ? null : c.id);
+                                if (!targetActive) {
+                                  // Auto-expand mobile card if history is requested
+                                  setExpandedCardId(c.id);
+                                }
+                              }}
+                              className={`inline-flex items-center justify-center p-1 rounded-lg transition-all cursor-pointer ${
+                                activeHistoryCabinetId === c.id
+                                  ? 'bg-emerald-500/10 text-[#79b823] dark:text-emerald-400 border border-emerald-500/25'
+                                  : 'text-slate-455 hover:text-slate-800 dark:hover:text-slate-150 hover:bg-slate-100 dark:hover:bg-slate-800'
+                              }`}
+                            >
+                              <History className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </div>
                         
                         <div className="flex items-center space-x-1 shrink-0 text-slate-400">
@@ -637,6 +829,13 @@ export const RelevesTab: React.FC<RelevesTabProps> = ({
                               {isError ? "Saisie Invalide" : c.consumption.toLocaleString('fr-FR') + " " + c.unit}
                             </span>
                           </div>
+
+                          {/* Dynamic Recharts Sparkline aligned inside Mobile Accordion */}
+                          {activeHistoryCabinetId === c.id && (
+                            <div className="pt-2">
+                              <CabinetSparkline cabinet={c} themeMode={themeMode} />
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

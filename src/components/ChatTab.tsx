@@ -1,8 +1,9 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Bot, Send, RefreshCw, Sparkles, AlertTriangle, ArrowUpRight, Image, X, Paperclip, Mic, MicOff } from 'lucide-react';
+import { Bot, Send, RefreshCw, Sparkles, AlertTriangle, ArrowUpRight, Image, X, Paperclip, Mic, MicOff, Shield, Fingerprint, Check, Mail, Calendar, Lock } from 'lucide-react';
 import { ChatMessage } from '../types';
 import { playSound } from '../utils/audio';
+import { getAccessToken } from '../utils/googleAuth';
 
 const renderTextContent = (text: string) => {
   if (!text) return '';
@@ -260,6 +261,107 @@ export const ChatTab: React.FC<ChatTabProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [attachedImage, setAttachedImage] = useState<string | null>(null);
 
+  // FDA 21 CFR Part 11 human interactive approval states
+  const [signedActionIds, setSignedActionIds] = useState<{ 
+    [msgId: string]: { status: 'approved' | 'rejected'; signatureName?: string; timestamp?: string } 
+  }>(() => {
+    try {
+      const cached = localStorage.getItem('greenops_signed_actions');
+      return cached ? JSON.parse(cached) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const [signatureInputs, setSignatureInputs] = useState<{ [msgId: string]: string }>({});
+  const [actionInProgress, setActionInProgress] = useState<string | null>(null);
+
+  const saveSignedActionState = (updated: any) => {
+    setSignedActionIds(updated);
+    localStorage.setItem('greenops_signed_actions', JSON.stringify(updated));
+  };
+
+  const handleApproveAction = async (msgId: string, actionName: string, args: any) => {
+    playSound('preset');
+    const signature = signatureInputs[msgId] || '';
+    const partialAutonomy = localStorage.getItem('greenops_ia_partial_autonomy') === 'true';
+
+    if (partialAutonomy && !signature.trim()) {
+      alert("La réglementation FDA 21 CFR Part 11 en mode Autonomie Partielle exige une signature numérique. Veuillez saisir votre nom d'opérateur avant d'approuver.");
+      return;
+    }
+
+    setActionInProgress(msgId);
+    try {
+      const token = getAccessToken();
+
+      if (!token) {
+        throw new Error("L'autorisation Google (OAuth) est requise pour déclencher les API sous votre identité d'inspecteur d'Opalia. Veuillez d'abord vous connecter dans l'onglet Synchronisation.");
+      }
+
+      if (actionName === 'sendEmail') {
+        const res = await fetch('/api/gmail/send', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            to: args.to,
+            subject: args.subject,
+            htmlBody: args.htmlBody
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Erreur lors de l'envoi via Gmail API.");
+      } else if (actionName === 'createCalendarEvent') {
+        const res = await fetch('/api/calendar/events', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            summary: args.summary,
+            description: args.description,
+            startDateTime: args.startDateTime,
+            endDateTime: args.endDateTime,
+            calendarId: args.calendarId
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Erreur lors de la création d'événement via Google Calendar API.");
+      } else {
+        throw new Error(`Action inconnue : ${actionName}`);
+      }
+
+      playSound('success');
+      const now = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) + ' (UTC+1)';
+      const updated = {
+        ...signedActionIds,
+        [msgId]: { status: 'approved' as const, signatureName: signature || 'Energy Manager', timestamp: now }
+      };
+      saveSignedActionState(updated);
+      alert("Félicitations ! L'action a été signée numériquement avec succès et transmise de manière sécurisée en temps réel.");
+    } catch (err: any) {
+      playSound('alert');
+      console.error(err);
+      alert(`Échec de la validation de signature : ${err.message || err}`);
+    } finally {
+      setActionInProgress(null);
+    }
+  };
+
+  const handleRejectAction = (msgId: string) => {
+    playSound('alert');
+    const now = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) + ' (UTC+1)';
+    const updated = {
+      ...signedActionIds,
+      [msgId]: { status: 'rejected' as const, timestamp: now }
+    };
+    saveSignedActionState(updated);
+  };
+
   // Speech Recognition States
   const [isListening, setIsListening] = useState(false);
   const [recognitionError, setRecognitionError] = useState<string | null>(null);
@@ -472,6 +574,133 @@ export const ChatTab: React.FC<ChatTabProps> = ({
               <div className="text-xs font-medium">
                 <FormattedMessage content={msg.content} isUser={msg.role === 'user'} />
               </div>
+
+              {/* Dynamic FDA 21 CFR Part 11 interactive validation card for pending action (Gmail, Google Calendar) */}
+              {msg.role !== 'user' && msg.pendingAction && (
+                <div className={`mt-4 p-4 rounded-xl border space-y-3.5 select-none ${
+                    signedActionIds[msg.id]?.status === 'approved'
+                      ? 'bg-emerald-500/5 border-emerald-500/25 text-emerald-800 dark:text-emerald-300'
+                      : signedActionIds[msg.id]?.status === 'rejected'
+                      ? 'bg-rose-500/5 border-rose-500/20 text-rose-800 dark:text-rose-300'
+                      : 'bg-amber-500/5 border-amber-500/25 text-slate-800 dark:text-slate-200'
+                }`}>
+                  <div className="flex items-start space-x-2.5">
+                    <div className={`p-1.5 rounded-lg shrink-0 ${
+                      signedActionIds[msg.id]?.status === 'approved'
+                        ? 'bg-emerald-500/10 text-emerald-500'
+                        : signedActionIds[msg.id]?.status === 'rejected'
+                        ? 'bg-rose-500/10 text-rose-500'
+                        : 'bg-amber-500/15 text-amber-500'
+                    }`}>
+                      {msg.pendingAction.name === 'sendEmail' ? (
+                        <Mail className="w-4 h-4" />
+                      ) : (
+                        <Calendar className="w-4 h-4" />
+                      )}
+                    </div>
+                    <div className="flex-1 space-y-0.5">
+                      <h4 className="text-xs font-bold leading-none font-display text-slate-800 dark:text-slate-100">
+                        {msg.pendingAction.name === 'sendEmail' 
+                          ? "Action Suspendue : Envoi d'Email Gmail" 
+                          : "Action Suspendue : Agenda Google Calendar"
+                        }
+                      </h4>
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-tight">
+                        {msg.pendingAction.name === 'sendEmail'
+                          ? `Envoi d'un rapport technique par email à : ${msg.pendingAction.args.to}`
+                          : `Programmation d'événement dans l'agenda d'Opalia : ${msg.pendingAction.args.summary}`
+                        }
+                      </p>
+                    </div>
+                    <div className="shrink-0 flex items-center space-x-1 font-mono text-[9px] uppercase tracking-wider bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded px-1.5 py-0.5 text-slate-400">
+                      <Lock className="w-2.5 h-2.5 text-amber-500" />
+                      <span>21 CFR-11</span>
+                    </div>
+                  </div>
+
+                  {/* Render content snippet to inspect */}
+                  <div className="bg-slate-50 dark:bg-slate-900/40 p-2.5 rounded-lg border border-slate-150 dark:border-slate-850 text-[10.5px] font-sans leading-relaxed text-slate-500 dark:text-slate-400 overflow-hidden max-h-36 overflow-y-auto">
+                    {msg.pendingAction.name === 'sendEmail' ? (
+                      <div className="space-y-1">
+                        <div><b>Email Destinataire :</b> {msg.pendingAction.args.to}</div>
+                        <div><b>Sujet :</b> {msg.pendingAction.args.subject}</div>
+                        <div className="border-t border-slate-200/50 dark:border-slate-800/50 pt-1 mt-1 font-mono text-[9.5px]">
+                          Veuillez autoriser l'envoi de cette synthèse analytique à l'adresse de l'interlocuteur d'Opalia. Mode d'approbation humaine STRICT requis.
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-1">
+                        <div><b>Sujet :</b> {msg.pendingAction.args.summary}</div>
+                        <div><b>Début :</b> {new Date(msg.pendingAction.args.startDateTime).toLocaleString('fr-Fr')}</div>
+                        <div><b>Description :</b> {msg.pendingAction.args.description}</div>
+                      </div>
+                    )}
+                  </div>
+
+                  {signedActionIds[msg.id]?.status === 'approved' ? (
+                    <div className="flex items-center space-x-2 text-xs text-emerald-600 dark:text-emerald-450 font-semibold font-display bg-emerald-500/10 p-2 px-3 rounded-lg border border-emerald-500/20">
+                      <Check className="w-4 h-4 text-emerald-500" />
+                      <span>
+                        Approuvé & Signé numériquement par « {signedActionIds[msg.id].signatureName} » à {signedActionIds[msg.id].timestamp} 
+                      </span>
+                    </div>
+                  ) : signedActionIds[msg.id]?.status === 'rejected' ? (
+                    <div className="flex items-center space-x-2 text-xs text-rose-500 font-semibold font-display bg-rose-500/10 p-2 px-3 rounded-lg border border-rose-500/20">
+                      <X className="w-4 h-4 text-rose-500" />
+                      <span>Action déclinée et transaction annulée le {signedActionIds[msg.id].timestamp}</span>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {/* Signature Name Input if partial autonomy is on */}
+                      {localStorage.getItem('greenops_ia_partial_autonomy') === 'true' && (
+                        <div className="space-y-1">
+                          <label className="text-[10px] uppercase font-bold text-amber-500 tracking-wider block font-mono">
+                            Signature d'Habilitation d'Opérateur (Exigée) :
+                          </label>
+                          <div className="relative">
+                            <Fingerprint className="w-4 h-4 text-slate-400 absolute left-3 top-2 pointer-events-none" />
+                            <input 
+                              type="text" 
+                              placeholder="Saisissez votre prénom, nom ou code d'inspecteur"
+                              value={signatureInputs[msg.id] || ''}
+                              onChange={(e) => setSignatureInputs(prev => ({ ...prev, [msg.id]: e.target.value }))}
+                              className="w-full pl-9 pr-3 py-1.5 rounded-xl text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:border-amber-500 font-sans"
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Approval controls */}
+                      <div className="flex items-center space-x-2">
+                        <button 
+                          onClick={() => handleApproveAction(msg.id, msg.pendingAction!.name, msg.pendingAction!.args)}
+                          disabled={actionInProgress === msg.id}
+                          className="flex-1 bg-[#79b823] hover:bg-emerald-600 text-white font-bold font-display px-3 py-2 rounded-xl text-[11px] flex items-center justify-center space-x-1.5 shadow-sm hover:shadow-md transition-all cursor-pointer disabled:opacity-50"
+                        >
+                          {actionInProgress === msg.id ? (
+                            <>
+                              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                              <span>Signature en cours...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Fingerprint className="w-3.5 h-3.5 shrink-0" />
+                              <span>Signer & Autoriser la Transaction</span>
+                            </>
+                          )}
+                        </button>
+                        <button 
+                          onClick={() => handleRejectAction(msg.id)}
+                          disabled={actionInProgress === msg.id}
+                          className="px-3 py-2 text-[11px] font-bold font-display rounded-xl border border-rose-200 dark:border-rose-950 text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer disabled:opacity-50"
+                        >
+                          Décliner
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Message Timestamp */}
               <div className={`text-[9px] mt-2.5 font-mono text-right opacity-60 ${

@@ -52,4 +52,8 @@ export interface ChatMessage {
   content: string;
   timestamp: Date;
   imageUrl?: string;
+  pendingAction?: {
+    name: string;
+    args: any;
+  } | null;
 }

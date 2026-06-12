@@ -411,11 +411,22 @@ export const LineTempEnergyChart: React.FC<LineChartProps> = ({ data, themeMode 
           {/* Interaction points */}
           {consoPoints.map((pt, idx) => {
             const isHovered = activePoint === idx;
+            const stepWidth = plotWidth / (consoPoints.length - 1 || 1);
             return (
               <g key={idx} 
                  onMouseEnter={() => setActivePoint(idx)}
                  onMouseLeave={() => setActivePoint(null)}
                  className="cursor-pointer">
+                {/* Invisible full-height hit area overlay */}
+                <rect 
+                  x={pt.x - stepWidth / 2} 
+                  y={paddingTop} 
+                  width={stepWidth} 
+                  height={plotHeight} 
+                  fill="currentColor" 
+                  opacity="0"
+                  pointerEvents="all"
+                />
                 {/* Overlay vertical bar highlight */}
                 {isHovered && (
                   <line 
@@ -465,7 +476,7 @@ export const LineTempEnergyChart: React.FC<LineChartProps> = ({ data, themeMode 
                 : 'bg-slate-950/95 border-slate-700 text-slate-100'
             }`}
             style={{
-              left: `${consoPoints[activePoint].x - 10}px`,
+              left: `${(consoPoints[activePoint].x / width) * 100}%`,
               top: '15px',
               transform: 'translateX(-50%)',
             }}
@@ -560,7 +571,7 @@ export const YearlyComparisonChart: React.FC<YearlyComparisonProps> = ({ data, t
         ? 'bg-white border-slate-205 shadow-sm' 
         : 'glass-panel-dark border-slate-800 backdrop-blur-md'
     }`}>
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 relative z-40">
         <div>
           <h3 className={`font-display text-sm font-bold flex items-center gap-1.5 ${
             themeMode === 'light' ? 'text-slate-800' : 'text-slate-100'
@@ -582,8 +593,8 @@ export const YearlyComparisonChart: React.FC<YearlyComparisonProps> = ({ data, t
             onClick={() => setViewMode('both')}
             className={`px-3 py-1 text-[11px] font-semibold rounded-lg transition-all cursor-pointer ${
               viewMode === 'both'
-                ? (themeMode === 'light' ? 'bg-white text-slate-800 shadow-xs' : 'bg-slate-805 text-slate-100 shadow-md')
-                : 'text-slate-450 hover:text-slate-300'
+                ? (themeMode === 'light' ? 'bg-white text-slate-800 shadow-sm border border-slate-200' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shadow-md font-bold')
+                : (themeMode === 'light' ? 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/50' : 'text-slate-400 hover:text-slate-200 hover:bg-white/5')
             }`}
           >
             Courbes 26 vs 25
@@ -593,8 +604,8 @@ export const YearlyComparisonChart: React.FC<YearlyComparisonProps> = ({ data, t
             onClick={() => setViewMode('saving')}
             className={`px-3 py-1 text-[11px] font-semibold rounded-lg transition-all cursor-pointer ${
               viewMode === 'saving'
-                ? (themeMode === 'light' ? 'bg-white text-slate-800 shadow-xs' : 'bg-slate-805 text-slate-100 shadow-md')
-                : 'text-slate-455 hover:text-slate-300'
+                ? (themeMode === 'light' ? 'bg-white text-slate-800 shadow-sm border border-slate-200' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shadow-md font-bold')
+                : (themeMode === 'light' ? 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/50' : 'text-slate-400 hover:text-slate-200 hover:bg-white/5')
             }`}
           >
             Économies Réalisées
@@ -658,11 +669,23 @@ export const YearlyComparisonChart: React.FC<YearlyComparisonProps> = ({ data, t
             {/* Interactive ticks & points */}
             {points2026.map((pt, idx) => {
               const isHovered = activePoint === idx;
+              const stepWidth = plotWidth / (data.length - 1 || 1);
               return (
                 <g key={idx} 
                    onMouseEnter={() => setActivePoint(idx)}
                    onMouseLeave={() => setActivePoint(null)}
                    className="cursor-pointer">
+                  {/* Invisible full-height hit area overlay */}
+                  <rect 
+                    x={pt.x - stepWidth / 2} 
+                    y={paddingTop} 
+                    width={stepWidth} 
+                    height={plotHeight} 
+                    fill="currentColor" 
+                    opacity="0"
+                    pointerEvents="all"
+                  />
+
                   {/* Vertical Hover Highlighter Bar */}
                   {isHovered && (
                     <line 
@@ -733,7 +756,7 @@ export const YearlyComparisonChart: React.FC<YearlyComparisonProps> = ({ data, t
                   : 'bg-slate-950/95 border-slate-800 text-slate-100'
               }`}
               style={{
-                left: `${points2026[activePoint].x}px`,
+                left: `${(points2026[activePoint].x / width) * 100}%`,
                 top: `10px`,
                 transform: 'translateX(-50%)',
               }}
@@ -803,6 +826,16 @@ export const YearlyComparisonChart: React.FC<YearlyComparisonProps> = ({ data, t
                    onMouseEnter={() => setActivePoint(index)} 
                    onMouseLeave={() => setActivePoint(null)}
                    className="cursor-pointer">
+                  {/* Invisible full-height hit area overlay */}
+                  <rect 
+                    x={paddingLeft + colWidth * index} 
+                    y={paddingTop} 
+                    width={colWidth} 
+                    height={plotHeight} 
+                    fill="currentColor" 
+                    opacity="0"
+                    pointerEvents="all"
+                  />
                   <rect 
                     x={x} 
                     y={y} 
@@ -843,6 +876,43 @@ export const YearlyComparisonChart: React.FC<YearlyComparisonProps> = ({ data, t
             <span className="w-3 h-3 rounded bg-emerald-500 inline-block"></span>
             <span className={themeMode === 'light' ? 'text-slate-600 font-semibold' : 'text-emerald-400 font-medium'}>Gains Optimisés Électricité & Chauffage (TND)</span>
           </div>
+
+          {/* Floating Tooltip info */}
+          {activePoint !== null && (
+            <div 
+              className={`absolute z-35 border p-3 rounded-xl shadow-2xl text-xs w-48 transition-all duration-200 ${
+                themeMode === 'light' 
+                  ? 'bg-white border-slate-200 text-slate-800 shadow-lg' 
+                  : 'bg-slate-950/95 border-slate-800 text-slate-100'
+              }`}
+              style={{
+                left: `${((paddingLeft + (activePoint + 0.5) * (plotWidth / data.length)) / width) * 100}%`,
+                top: `10px`,
+                transform: 'translateX(-50%)',
+              }}
+            >
+              <div className={`font-semibold pb-1.5 mb-1.5 font-display border-b flex justify-between items-center ${
+                themeMode === 'light' ? 'text-slate-800 border-slate-100' : 'text-slate-300 border-slate-850'
+              }`}>
+                <span>{data[activePoint].month}</span>
+                <span className="text-[10px] text-emerald-500 font-mono">Gains ANME</span>
+              </div>
+              <div className="flex justify-between py-0.5">
+                <span className="text-slate-450">Coût 2025 :</span>
+                <span className="font-mono font-bold">{data[activePoint].previousYear.toLocaleString('fr-FR')} DT</span>
+              </div>
+              <div className="flex justify-between py-0.5">
+                <span className="text-[#79b823] font-medium">Coût 2026 :</span>
+                <span className="font-mono font-bold text-[#79b823]">{data[activePoint].currentYear.toLocaleString('fr-FR')} DT</span>
+              </div>
+              <div className={`flex justify-between border-t pt-1.5 mt-1.5 font-bold ${
+                themeMode === 'light' ? 'border-slate-100 text-emerald-600' : 'border-slate-850 text-emerald-400'
+              }`}>
+                <span>Économie :</span>
+                <span className="font-mono">+{(data[activePoint].previousYear - data[activePoint].currentYear).toLocaleString('fr-FR')} DT</span>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

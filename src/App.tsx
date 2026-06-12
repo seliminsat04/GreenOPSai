@@ -61,6 +61,18 @@ export default function App() {
   const [cabinets, setCabinets] = useState<Cabinet[]>([]);
   const [products, setProducts] = useState<ProductMetrics[]>(INITIAL_PRODUCTS);
   const [themeMode, setThemeMode] = useState<'dark' | 'light'>('light');
+
+  // Synchroniser le thème avec document.documentElement et document.body pour les classes de variante dark de Tailwind v4
+  useEffect(() => {
+    if (themeMode === 'dark') {
+      document.documentElement.classList.add('dark');
+      document.body.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      document.body.classList.remove('dark');
+    }
+  }, [themeMode]);
+
   const [isOnline, setIsOnline] = useState<boolean>(() => {
     return typeof navigator !== 'undefined' ? navigator.onLine : true;
   });
@@ -386,14 +398,23 @@ export default function App() {
     }, 1205);
 
     try {
+      const token = getAccessToken();
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json'
+      };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
       const response = await fetch('/api/gemini/chat', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers,
         body: JSON.stringify({
           messages: [...chatMessages, userMsg],
           imageUrl: imageUrl, // Relayed to server for multimodal Gemini 3.5-flash analysis
+          currentUser: currentUser, // Include active user name, email and role dynamically
+          strictApproval: localStorage.getItem('greenops_ia_strict_approval') !== 'false',
+          partialAutonomy: localStorage.getItem('greenops_ia_partial_autonomy') === 'true',
           currentMetrics: {
             temperature: outsideTemp,
             products: productLots,
@@ -409,7 +430,8 @@ export default function App() {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
         content: data.response || "Désolé, j'ai rencontré un problème pour interroger les capteurs d'Opalia en temps réel.",
-        timestamp: new Date()
+        timestamp: new Date(),
+        pendingAction: data.pendingAction
       };
       setChatMessages(prev => [...prev, botMsg]);
     } catch (err) {
