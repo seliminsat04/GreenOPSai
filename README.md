@@ -51,7 +51,7 @@ La console **GreenOps Opalia** unifie l'acquisition de données d'usine locales 
 * **Contrôle d'Intégrité :** Chaque modification apportée aux 15 compteurs d'usine génère un enregistrement immutable d'Audit Trail local.
 * **Sécurisation Cryptographique :** Signature automatique des transactions via génération d'empreintes **SHA-256** indélébiles (Scellement d'intégrité ALCOA+), scellant la valeur précédente, la nouvelle, l'acteur SSO et l'horodatage précis à la seconde locale de Tunis.
 
-### 4. Passerelle Google Cloud Connectée de Bout-en-Bout
+### 4. Interactions Google Workspace Avancées
 * **Synchronisation Google Sheets bidirectionnelle :**
   - **Export Réel :** Conversion et téléversement structuré des 15 compteurs d'usine en un clic dans la feuille distante configurée via l'identifiant de classeur.
   - **Import Réel :** Restructuration locale instantanée des index Opalia par lecture directe depuis le classeur Cloud.
@@ -59,8 +59,19 @@ La console **GreenOps Opalia** unifie l'acquisition de données d'usine locales 
 * **Diffusion Gmail API Certifiée :**
   - Génération de rapports graphiques HTML hautement stylisés, incluant des tableaux de bord énergétiques, le journal d'Audit Trail FDA conforme, ou les KPI de déviation d'armoire.
   - Expédition immédiate par e-mail en exploitant le compte professionnel Google Workspace connecté via l'authentification SSO.
+* **Gestion des Agendas Google Calendar :**
+  - Sélection de l'agenda de destination cible (ex: Agenda principal Energy Manager vs Agendas partagés de maintenance).
+  - Planification centralisée des opérations d'audit, de sécurité ou de relevé curatif directement injectées dans le planning de l'usine, avec suivi des statuts de création.
 
-### 5. Code Splitting de Haute Performance
+### 5. Modes d'Autonomie GAMP 5 / FDA 21 CFR Part 11
+L'application propose une gestion fine des droits de validation conforme aux normes pharmaceutiques, avec des modes mutuellement exclusifs pour la modification de l'état système ou les actions impactantes (modification compteurs, envoi d'emails, création d'événements) :
+* **Approbation Humaine Stricte :** Oblige l'Energy Manager ou l'opérateur à valider explicitement (via popup bloquante) chaque proposition mutative suggérée par l'IA ou décidée par l'utilisateur (Ex: confirmation de l'inscription à l'agenda).
+* **Autonomie Partielle - Mode Signature FDA :** Laisse exécuter la mutation de manière plus fluide mais exige une **signature numérique explicite** de l'opérateur (saisie de son nom/identifiant) pour entériner l'action dans le journal d'Audit Trail, garantissant l'imputabilité de chaque acte.
+
+### 6. Assistant AI GreenOps avec Fonction Calling
+* Interaction en langage naturel pour la consultation des états de l'armoire, météo, compteurs, et lancement scripté ou automatisé des actions Workspace (Génération d'emails, lecture/écriture Sheets, planification d'événements Calendar). L'IA agit en tant que collaborateur direct et ses actions de mutation sont filtrées par le proxy de blocage FDA selon le mode de validation actif.
+
+### 7. Code Splitting de Haute Performance
 * Pour s'adapter aux contraintes réseau de l'infrastructure d'Opalia à Ariana, l'application utilise du **Code Splitting par Route** sur les onglets principaux. Les modules lourds (`DashboardTab`, `SimulatorTab`, `RelevesTab`, `CostsTab`, `ChatTab`, `SettingsTab`) sont chargés dynamiquement à la volée grâce à React `lazy()` et encapsulés dans un composant `Suspense` fluide, réduisant drastiquement le temps de chargement initial.
 
 ---
