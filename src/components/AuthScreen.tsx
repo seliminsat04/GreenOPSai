@@ -177,9 +177,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, themeMod
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center bg-white/95 backdrop-blur-md w-16 h-16 rounded-2xl shadow-xl border border-white/20 mb-4 hover:scale-[1.03] transition-all">
             <img 
-              src="https://www.keejob.com/media/recruiter/recruiter_151/logo-opalia-pharma-recordati-group-20160202-085534.png"
+              src="https://i.postimg.cc/0j2Fwdr6/R-Logo2023-CMYK-page-0001.jpg"
               alt="Opalia Recordati" 
-              className="w-12 h-12 object-contain shrink-0 filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.03)]"
+              className="w-12 h-12 object-contain shrink-0 filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.03)] mix-blend-multiply"
               referrerPolicy="no-referrer"
               id="auth-opalia-logo"
             />

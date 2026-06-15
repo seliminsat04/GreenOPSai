@@ -560,9 +560,9 @@ export default function App() {
               <div className="flex flex-col items-center justify-center space-y-1.5 py-1">
                 <div className="bg-white p-1 rounded-lg flex items-center justify-center border border-white/10 w-10 h-10 select-none shadow-xs hover:scale-105 transition-all">
                   <img 
-                    src="https://www.keejob.com/media/recruiter/recruiter_151/logo-opalia-pharma-recordati-group-20160202-085534.png"
+                    src="https://i.postimg.cc/0j2Fwdr6/R-Logo2023-CMYK-page-0001.jpg"
                     alt="Opalia" 
-                    className="h-6.5 w-auto object-contain shrink-0"
+                    className="h-6.5 w-auto object-contain shrink-0 mix-blend-multiply"
                     referrerPolicy="no-referrer"
                     title="Opalia Recordati"
                   />
@@ -574,9 +574,9 @@ export default function App() {
                 {/* Branded Opalia Pharma logo image with fallback text */}
                 <div className="bg-white hover:scale-[1.01] hover:shadow-md transition-all px-3 py-1.5 rounded-xl flex items-center justify-center border border-white/10 w-32 mx-auto mb-1 select-none shadow-xs">
                   <img 
-                    src="https://www.keejob.com/media/recruiter/recruiter_151/logo-opalia-pharma-recordati-group-20160202-085534.png"
+                    src="https://i.postimg.cc/0j2Fwdr6/R-Logo2023-CMYK-page-0001.jpg"
                     alt="Opalia Recordati" 
-                    className="h-8.5 w-auto object-contain shrink-0 filter drop-shadow-[0_1px_1px_rgba(0,0,0,0.02)]"
+                    className="h-8.5 w-auto object-contain shrink-0 filter drop-shadow-[0_1px_1px_rgba(0,0,0,0.02)] mix-blend-multiply"
                     referrerPolicy="no-referrer"
                   />
                 </div>
