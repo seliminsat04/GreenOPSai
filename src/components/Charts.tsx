@@ -220,7 +220,7 @@ export const DonutChart: React.FC<DonutProps> = ({ elecCO2, waterCO2, gasoilCO2,
                 const r = 35;
                 const circumference = 2 * Math.PI * r;
                 const strokeLength = (slice.percentage / 100) * circumference;
-                const strokeOffset = circumference - (slice.startAngle / 360) * circumference;
+                const strokeOffset = - (slice.startAngle / 360) * circumference;
                 const isHovered = hoveredIdx === idx;
 
                 return (
@@ -231,10 +231,10 @@ export const DonutChart: React.FC<DonutProps> = ({ elecCO2, waterCO2, gasoilCO2,
                     r={r}
                     fill="none"
                     stroke={catColor(idx)}
-                    strokeWidth={isHovered ? 15 : 12}
+                    strokeWidth={isHovered ? 10 : 6}
                     strokeDasharray={`${strokeLength} ${circumference}`}
                     strokeDashoffset={strokeOffset}
-                    strokeLinecap="round"
+                    strokeLinecap="butt"
                     className="transition-all duration-300 cursor-pointer"
                     onMouseEnter={() => setHoveredIdx(idx)}
                     onMouseLeave={() => setHoveredIdx(null)}
@@ -245,10 +245,10 @@ export const DonutChart: React.FC<DonutProps> = ({ elecCO2, waterCO2, gasoilCO2,
           </svg>
           {/* Centered Total */}
           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-            <span className={`text-[10px] uppercase tracking-widest font-display ${
+            <span className={`text-[8px] uppercase tracking-widest font-display ${
               themeMode === 'light' ? 'text-slate-500' : 'text-slate-400'
             }`}>CO₂ Total</span>
-            <span className={`text-xl font-bold font-mono ${
+            <span className={`text-base font-bold font-mono ${
               themeMode === 'light' ? 'text-emerald-600' : 'text-emerald-400 glow-text-green'
             }`}>
               {total.toFixed(1)} t
@@ -270,7 +270,7 @@ export const DonutChart: React.FC<DonutProps> = ({ elecCO2, waterCO2, gasoilCO2,
               }`}
             >
               <div className="flex items-center space-x-2">
-                <span className="w-3 h-3 rounded-full inline-block" style={{ backgroundColor: slice.color }}></span>
+                <span className="w-3 h-3 rounded-full inline-block" style={{ backgroundColor: catColor(idx) }}></span>
                 <span className={`text-xs ${themeMode === 'light' ? 'text-slate-600' : 'text-slate-300'}`}>{slice.name}</span>
               </div>
               <div className="text-right">
@@ -613,6 +613,27 @@ export const YearlyComparisonChart: React.FC<YearlyComparisonProps> = ({ data, t
         </div>
       </div>
 
+      {/* Legend indicators */}
+      <div className={`flex items-center space-x-4 text-[10px] select-none px-5 ${viewMode === 'saving' ? 'mb-4' : 'mb-4'}`}>
+        {viewMode === 'both' ? (
+          <>
+            <span className="flex items-center space-x-1">
+              <span className="w-3 h-0.5 bg-[#79b823] inline-block"></span>
+              <span className={themeMode === 'light' ? 'text-slate-700 font-semibold' : 'text-emerald-400 font-medium'}>Courant 2026</span>
+            </span>
+            <span className="flex items-center space-x-1 font-mono">
+              <span className="w-3 h-0.5 bg-blue-500 border-dashed border-t inline-block"></span>
+              <span className={themeMode === 'light' ? 'text-slate-500' : 'text-slate-450'}>Précédent 2025</span>
+            </span>
+          </>
+        ) : (
+          <span className="flex items-center space-x-2">
+            <span className="w-3 h-3 rounded bg-emerald-500 inline-block"></span>
+            <span className={themeMode === 'light' ? 'text-slate-600 font-semibold' : 'text-emerald-400 font-medium'}>Gains Optimisés Électricité & Chauffage (TND)</span>
+          </span>
+        )}
+      </div>
+
       {viewMode === 'both' ? (
         <div className="relative" style={{ height: `${height}px` }}>
           <svg className="w-full h-full overflow-visible" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
@@ -735,17 +756,6 @@ export const YearlyComparisonChart: React.FC<YearlyComparisonProps> = ({ data, t
             })}
           </svg>
 
-          {/* Legend indicators */}
-          <div className="absolute left-14 bottom-14 flex items-center space-x-4 text-[10px] select-none pointer-events-none">
-            <span className="flex items-center space-x-1">
-              <span className="w-3 h-0.5 bg-[#79b823] inline-block"></span>
-              <span className={themeMode === 'light' ? 'text-slate-700 font-semibold' : 'text-emerald-400 font-medium'}>Courant 2026</span>
-            </span>
-            <span className="flex items-center space-x-1 font-mono">
-              <span className="w-3 h-0.5 bg-blue-500 border-dashed border-t inline-block"></span>
-              <span className={themeMode === 'light' ? 'text-slate-500' : 'text-slate-450'}>Précédent 2025</span>
-            </span>
-          </div>
 
           {/* Floating Tooltip info */}
           {activePoint !== null && (
@@ -871,11 +881,6 @@ export const YearlyComparisonChart: React.FC<YearlyComparisonProps> = ({ data, t
             })}
           </svg>
 
-          {/* Legend indicators */}
-          <div className="absolute left-14 bottom-14 flex items-center space-x-2 text-[10px] select-none pointer-events-none">
-            <span className="w-3 h-3 rounded bg-emerald-500 inline-block"></span>
-            <span className={themeMode === 'light' ? 'text-slate-600 font-semibold' : 'text-emerald-400 font-medium'}>Gains Optimisés Électricité & Chauffage (TND)</span>
-          </div>
 
           {/* Floating Tooltip info */}
           {activePoint !== null && (
@@ -919,90 +924,10 @@ export const YearlyComparisonChart: React.FC<YearlyComparisonProps> = ({ data, t
   );
 };
 
+
 // TREEMAP CHART: Hierarchy of Cabinets and Equipments
-import { Treemap, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
-
-export const CabinetTreemap: React.FC<{ cabinets: any[], themeMode?: 'dark' | 'light' }> = ({ cabinets, themeMode = 'dark' }) => {
-  // Format data for Recharts Treemap
-  // We exclude CAB-01 (TGBT) to avoid duplicate consumption as it handles everything.
-  const excludedCabinets = ['CAB-01'];
-  
-  const TREEMAP_COLORS = [
-    '#0284c7', // sky-600
-    '#ea580c', // orange-600
-    '#059669', // emerald-600
-    '#4f46e5', // indigo-600
-    '#db2777', // pink-600
-    '#d97706', // amber-600
-    '#2563eb', // blue-600
-    '#c026d3', // fuchsia-600
-    '#65a30d', // lime-600
-    '#7c3aed', // violet-600
-    '#14b8a6', // teal-500
-    '#b91c1c', // red-700
-  ];
-
-  const formattedData = cabinets
-    .filter(c => !excludedCabinets.includes(c.id) && c.equipments && c.equipments.length > 0)
-    .map((c, idx) => {
-      const parentColor = TREEMAP_COLORS[idx % TREEMAP_COLORS.length];
-      return {
-        name: c.name.split(' - ')[0], // e.g. "Armoire 02"
-        children: c.equipments.map((e: any) => ({
-          name: e.name,
-          size: Math.abs(e.consumption) > 0 ? Math.abs(e.consumption) : 1, // need positive size
-          realSize: e.consumption,
-          unit: c.unit || 'kWh',
-          fill: parentColor,
-        }))
-      };
-    });
-
-  const CustomTooltip = ({ active, payload }: any) => {
-    if (active && payload && payload.length) {
-      const data = payload[0].payload;
-      return (
-        <div className={`p-3 rounded-xl border shadow-xl ${themeMode === 'light' ? 'bg-white border-slate-200 text-slate-800' : 'bg-slate-900 border-slate-800 text-slate-200'}`}>
-          <div className="flex items-center gap-2 mb-1">
-            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: data.fill }} />
-            <p className="font-bold font-sans text-sm leading-tight">{data.name}</p>
-          </div>
-          <p className="text-xs font-mono mt-1 text-[#79b823] ml-5">{data.realSize?.toLocaleString('fr-FR')} {data.unit}</p>
-        </div>
-      );
-    }
-    return null;
-  };
-
-  return (
-    <div className={`relative p-5 rounded-2xl border transition-colors duration-300 h-[28rem] ${
-      themeMode === 'light' 
-        ? 'bg-white border-slate-200/80 shadow-sm' 
-        : 'bg-slate-900/60 border-slate-800 backdrop-blur-md'
-    }`}>
-      <h3 className={`font-display text-sm font-semibold mb-6 ${
-        themeMode === 'light' ? 'text-slate-800' : 'text-slate-300'
-      }`}>
-        Cartographie d'Arborescence : Consommation par Équipement (Sous-Comptage)
-      </h3>
-      <div className="w-full h-[350px]">
-        <ResponsiveContainer width="100%" height="100%">
-          <Treemap
-            data={formattedData}
-            dataKey="size"
-            ratio={4 / 3}
-            stroke={themeMode === 'light' ? '#fff' : '#0f172a'}
-            isAnimationActive={false}
-          >
-            <RechartsTooltip content={<CustomTooltip />} />
-          </Treemap>
-        </ResponsiveContainer>
-      </div>
-    </div>
-  );
-};
-
-import { ComposedChart, Line, Bar, XAxis, YAxis, CartesianGrid, Legend, Tooltip as RechartsTooltip2 } from 'recharts';
+// (CabinetMatrix has been removed)
+import { ComposedChart, Line, Bar, XAxis, YAxis, CartesianGrid, Legend, Tooltip as RechartsTooltip2, ResponsiveContainer } from 'recharts';
 
 export const SolarVsNetworkChart: React.FC<{ data: any[], themeMode?: 'dark' | 'light' }> = ({ data, themeMode = 'dark' }) => {
   return (

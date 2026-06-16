@@ -5,7 +5,7 @@ import {
   CheckCircle2, Sparkles, TrendingUp, TrendingDown, Info, ShieldAlert, Sun, Droplets
 } from 'lucide-react';
 import { Cabinet, ProductMetrics } from '../types';
-import { StackedBarChart, DonutChart, LineTempEnergyChart, YearlyComparisonChart, CabinetTreemap, SolarVsNetworkChart } from './Charts';
+import { StackedBarChart, DonutChart, LineTempEnergyChart, YearlyComparisonChart, SolarVsNetworkChart } from './Charts';
 import { TEMPERATURE_ENERGY_HISTORY, MONTHLY_ENERGY_COMPARISON_HISTORY, MONTHLY_SOLAR_HISTORY } from '../data';
 import { playSound } from '../utils/audio';
 
@@ -359,7 +359,7 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
         <div className="space-y-6">
           <DonutChart 
             elecCO2={currentMetrics.elecCO2Tons}
-            waterCO2={0} // Sonede CO2 ratio is 0
+            waterCO2={currentMetrics.waterCO2Tons}
             gasoilCO2={currentMetrics.gasoilCO2Tons}
             themeMode={themeMode}
           />
@@ -503,10 +503,9 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
         </div>
       </div>
 
-      {/* Solar vs Network &  Arborescence Treemap View */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full">
+      {/* Solar vs Network View */}
+      <div className="w-full">
          <SolarVsNetworkChart data={MONTHLY_SOLAR_HISTORY} themeMode={themeMode} />
-         <CabinetTreemap cabinets={cabinets} themeMode={themeMode} />
       </div>
     </div>
   );

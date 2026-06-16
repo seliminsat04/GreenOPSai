@@ -52,8 +52,8 @@ function getRandomFallbackMessage(): string {
 // Resilient exponential retry wrapper for API calls (retries on transient 503 or 429)
 async function retryWithBackoff<T>(
   fn: () => Promise<T>,
-  retries = 3,
-  delay = 600
+  retries = 5,
+  delay = 1000
 ): Promise<T> {
   try {
     return await fn();

@@ -53,28 +53,30 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   };
 
   const handleToggleStrict = () => {
-    const nextVal = !strictApproval;
-    setStrictApproval(nextVal);
-    localStorage.setItem('greenops_ia_strict_approval', String(nextVal));
+    // If we're turning it OFF, we must turn the other ON
+    const nextStrict = !strictApproval;
+    const nextPartial = !nextStrict; // Must be opposite
+
+    setStrictApproval(nextStrict);
+    setPartialAutonomy(nextPartial);
     
-    // Mutual exclusivity
-    if (nextVal && partialAutonomy) {
-      setPartialAutonomy(false);
-      localStorage.setItem('greenops_ia_partial_autonomy', 'false');
-    }
+    localStorage.setItem('greenops_ia_strict_approval', String(nextStrict));
+    localStorage.setItem('greenops_ia_partial_autonomy', String(nextPartial));
+
     playSound('click');
   };
 
   const handleTogglePartial = () => {
-    const nextVal = !partialAutonomy;
-    setPartialAutonomy(nextVal);
-    localStorage.setItem('greenops_ia_partial_autonomy', String(nextVal));
+    // If we're turning it OFF, we must turn the other ON
+    const nextPartial = !partialAutonomy;
+    const nextStrict = !nextPartial; // Must be opposite
+
+    setPartialAutonomy(nextPartial);
+    setStrictApproval(nextStrict);
     
-    // Mutual exclusivity
-    if (nextVal && strictApproval) {
-      setStrictApproval(false);
-      localStorage.setItem('greenops_ia_strict_approval', 'false');
-    }
+    localStorage.setItem('greenops_ia_partial_autonomy', String(nextPartial));
+    localStorage.setItem('greenops_ia_strict_approval', String(nextStrict));
+
     playSound('click');
   };
 
@@ -191,6 +193,30 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                 step="0.01"
                 value={tariffs.co2Gasoil}
                 onChange={(e) => handleTariffChange('co2Gasoil', Number(e.target.value))}
+                className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 focus:border-emerald-500 font-mono text-xs font-bold text-slate-800 dark:text-slate-100 py-2 px-3 rounded-xl w-full focus:outline-none focus:ring-1 focus:ring-emerald-500/25 transition-all text-left"
+              />
+            </div>
+
+            {/* CO2 Water Brute */}
+            <div className="space-y-1.5 shadow-5xs p-1">
+              <label className="text-[11px] font-semibold text-slate-500 block">Intensité Carbone Eau Brute (kg CO₂ / m³) :</label>
+              <input 
+                type="number" 
+                step="0.01"
+                value={tariffs.co2WaterBrute}
+                onChange={(e) => handleTariffChange('co2WaterBrute', Number(e.target.value))}
+                className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 focus:border-emerald-500 font-mono text-xs font-bold text-slate-800 dark:text-slate-100 py-2 px-3 rounded-xl w-full focus:outline-none focus:ring-1 focus:ring-emerald-500/25 transition-all text-left"
+              />
+            </div>
+
+            {/* CO2 Water Purifiee */}
+            <div className="space-y-1.5 shadow-5xs p-1">
+              <label className="text-[11px] font-semibold text-slate-500 block">Intensité Carbone Eau Purifiée (kg CO₂ / m³) :</label>
+              <input 
+                type="number" 
+                step="0.01"
+                value={tariffs.co2WaterPurifiee}
+                onChange={(e) => handleTariffChange('co2WaterPurifiee', Number(e.target.value))}
                 className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 focus:border-emerald-500 font-mono text-xs font-bold text-slate-800 dark:text-slate-100 py-2 px-3 rounded-xl w-full focus:outline-none focus:ring-1 focus:ring-emerald-500/25 transition-all text-left"
               />
             </div>

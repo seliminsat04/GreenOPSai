@@ -7,6 +7,8 @@ export const DEFAULT_TARIFFS: UtilityTariffs = {
   gasoilLiter: 2.120,      // TND par Litre
   co2Electricity: 0.52,   // kg CO2 par kWh
   co2Gasoil: 2.68,        // kg CO2 par Litre
+  co2WaterBrute: 0.2,          // kg CO2 par m3
+  co2WaterPurifiee: 0.4,       // kg CO2 par m3
   solarProductionKwh: 12500, // Prod solaire par mois
 };
 

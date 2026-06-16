@@ -326,6 +326,7 @@ export default function App() {
     const waterBaseM3 = 850;
     const waterEvapM3 = waterBaseM3 * (1 + tempExcess * 0.022) * (directElec / 100000);
     const waterCost = waterEvapM3 * currentTariffs.bruteWater;
+    const waterCO2Tons = (waterEvapM3 * currentTariffs.co2WaterBrute) / 1000;
 
     const totalElecKwh = directElec + indirectElecKwh;
     
@@ -344,7 +345,7 @@ export default function App() {
     
     const elecCO2Tons = (netElecFromSteg * currentTariffs.co2Electricity) / 1000;
     const gasoilCO2Tons = (directGasoilLiters * currentTariffs.co2Gasoil) / 1000;
-    const totalCO2 = elecCO2Tons + gasoilCO2Tons;
+    const totalCO2 = elecCO2Tons + gasoilCO2Tons + waterCO2Tons;
 
     return {
       totalCost,
@@ -357,6 +358,7 @@ export default function App() {
       indirectElecCost,
       waterEvapM3,
       waterCost,
+      waterCO2Tons,
       totalElecKwh,
       elecCO2Tons,
       gasoilCO2Tons,
@@ -417,6 +419,20 @@ export default function App() {
     };
     setChatMessages(prev => [...prev, userMsg]);
     setChatInput('');
+
+    // --- Greeting detector to avoid triggering backend for simple hellos ---
+    const lowerQuery = query.toLowerCase().trim();
+    if (lowerQuery === 'hello' || lowerQuery === 'hi' || lowerQuery === 'bonjour' || lowerQuery === 'salut') {
+      const botMsg: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: `Bonjour ! Je suis votre assistant GreenOpsAI. Comment puis-je vous aider aujourd'hui sur l'optimisation énergétique de l'usine Opalia ?`,
+        timestamp: new Date()
+      };
+      setChatMessages(prev => [...prev, botMsg]);
+      return;
+    }
+
     setIsBotLoading(true);
 
     let tipIndex = 0;

@@ -54,6 +54,8 @@ export interface UtilityTariffs {
   gasoilLiter: number; // TND/liter (ex: 2.2)
   co2Electricity: number; // kg CO2/kWh from ANME (ex: 0.52)
   co2Gasoil: number; // kg CO2/Liter (ex: 2.68)
+  co2WaterBrute: number; // kg CO2/m3
+  co2WaterPurifiee: number; // kg CO2/m3
   solarProductionKwh?: number; // PV production per month
 }
 
