@@ -46,6 +46,18 @@ const LoadingFallback = () => (
   </div>
 );
 
+const Clock = () => {
+  const [time, setTime] = useState<string>('');
+  useEffect(() => {
+    setTime(new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+    const ticker = setInterval(() => {
+      setTime(new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+    }, 1000);
+    return () => clearInterval(ticker);
+  }, []);
+  return <span>{time || "08:15:00"}</span>;
+};
+
 export default function App() {
   // ---- Global Application State ----
   const [currentUser, setCurrentUser] = useState<{ name: string; email: string; role: string } | null>(() => {
@@ -135,16 +147,6 @@ export default function App() {
   const [chatInput, setChatInput] = useState('');
   const [isBotLoading, setIsBotLoading] = useState(false);
   const [botLoaderTip, setBotLoaderTip] = useState('');
-
-  // Real-time ticking clock for Tunis
-  const [currentTime, setCurrentTime] = useState<string>('');
-  useEffect(() => {
-    setCurrentTime(new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
-    const ticker = setInterval(() => {
-      setCurrentTime(new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
-    }, 1000);
-    return () => clearInterval(ticker);
-  }, []);
 
   // Sync custom greeting message when user logs in
   useEffect(() => {
@@ -323,12 +325,24 @@ export default function App() {
 
     const waterBaseM3 = 850;
     const waterEvapM3 = waterBaseM3 * (1 + tempExcess * 0.022) * (directElec / 100000);
-    const waterCost = waterEvapM3 * currentTariffs.sonedeWater;
+    const waterCost = waterEvapM3 * currentTariffs.bruteWater;
 
-    const totalCost = directCost + directGasoilCost + indirectElecCost + waterCost;
-    
     const totalElecKwh = directElec + indirectElecKwh;
-    const elecCO2Tons = (totalElecKwh * currentTariffs.co2Electricity) / 1000;
+    
+    // ---- SOLAR PV INTEGRATION ----
+    const pvProductionKwh = currentTariffs.solarProductionKwh || 0;
+    const netElecFromSteg = Math.max(0, totalElecKwh - pvProductionKwh);
+    const autoConsumptionRate = totalElecKwh > 0 ? Math.min(100, (pvProductionKwh / totalElecKwh) * 100) : 0;
+    const pvSavingsCost = Math.min(pvProductionKwh, totalElecKwh) * currentTariffs.stegElectricity;
+    const pvSavingsCO2 = (Math.min(pvProductionKwh, totalElecKwh) * currentTariffs.co2Electricity) / 1000;
+
+    // Redefine costs dynamically based on net STEG
+    const totalElecCost = netElecFromSteg * currentTariffs.stegElectricity;
+    // We adjust direct/indirect proportionally if needed, or we just trust the new total Cost logic
+    // We will keep directCost tracking the "theoretical" direct without PV, but adjust totalCost.
+    const totalCost = totalElecCost + directGasoilCost + waterCost;
+    
+    const elecCO2Tons = (netElecFromSteg * currentTariffs.co2Electricity) / 1000;
     const gasoilCO2Tons = (directGasoilLiters * currentTariffs.co2Gasoil) / 1000;
     const totalCO2 = elecCO2Tons + gasoilCO2Tons;
 
@@ -346,6 +360,11 @@ export default function App() {
       totalElecKwh,
       elecCO2Tons,
       gasoilCO2Tons,
+      pvProductionKwh,
+      netElecFromSteg,
+      autoConsumptionRate,
+      pvSavingsCost,
+      pvSavingsCO2
     };
   }
 
@@ -357,7 +376,17 @@ export default function App() {
     const directCost = directKwh * tariffs.stegElectricity * lotCount;
     
     const lotRatio = lotCount / totalProcessLots;
-    const indirectShareTnd = currentMetrics.indirectElecCost * lotRatio;
+    
+    let indirectShareTnd = currentMetrics.indirectElecCost * lotRatio;
+
+    // Ajustement de l'Eau Purifiée pour Sirop et Pommade
+    if (p.id === 'p-sirop' || p.id === 'p-pommade') {
+      const purifiedWaterVolume = 1.5 * lotCount; // 1.5 m3 par lot
+      indirectShareTnd += purifiedWaterVolume * (tariffs.purifiedWater || 8.5);
+    } else {
+      const bruteWaterVolume = 0.5 * lotCount; // 0.5 m3 par lot (lavage standard)
+      indirectShareTnd += bruteWaterVolume * (tariffs.bruteWater || 1.5);
+    }
     
     const totalItemCost = directCost + indirectShareTnd;
     const costPer1000 = p.costPer1000Units * (tariffs.stegElectricity / 0.285);
@@ -425,6 +454,10 @@ export default function App() {
         })
       });
 
+      if (!response.ok) {
+        throw new Error(`Server returned status ${response.status}`);
+      }
+      
       const data = await response.json();
       const botMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
@@ -720,7 +753,7 @@ export default function App() {
               </div>
               <div className="flex items-center space-x-2 bg-slate-100 dark:bg-slate-950 px-3 py-2 rounded-xl border border-slate-200/60 dark:border-slate-850 shrink-0 font-bold">
                 <Calendar className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-                <span>{currentTime || "08:15:00"}</span>
+                <Clock />
               </div>
 
               {/* Service Worker Resilient Offline / Online Status */}

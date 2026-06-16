@@ -39,6 +39,8 @@ La console **GreenOps Opalia** unifie l'acquisition de données d'usine locales 
 
 ### 1. Dashboard Opérationnel (Efficacité Énergétique)
 * **Indicateurs Multimodaux :** Monitoring en temps réel de l'**Électricité (kWh)**, de l'**Eau de boucle (m³)** et du **Gasoil de chaudière (Litres)**.
+* **Intégration de l'Énergie Solaire :** Suivi qualitatif de l'impact photovoltaïque avec affichage du taux d'auto-consommation, des économies générées en TND, de l'empreinte carbone évitée, et la comparaison graphique de la part Solaire vs Réseau STEG.
+* **Audit de Capacité & Détection d'Anomalies :** Analyse en temps réel du Taux de Charge par rapport au Calibre Maximum (Max A) des équipements. Le système alerte sur des machines de haute capacité non exploitées (consommation nulle) ou détecte les ratios de charge anormalement élevés pour une capacité restreinte.
 * **Diagnostics Prédictifs :** Analyse proactive automatique ciblant les dérives thermiques (ex : déviation sur la Ligne Pommade ou de Conditionnement) pour orienter la maintenance préventive.
 * **Aide Interactive :** Intégration d'un assistant IA intelligent (moteur de discussion de process) pour interroger les profils de consommation historiques d'Opalia Ariana.
 
@@ -73,6 +75,11 @@ L'application propose une gestion fine des droits de validation conforme aux nor
 
 ### 7. Code Splitting de Haute Performance
 * Pour s'adapter aux contraintes réseau de l'infrastructure d'Opalia à Ariana, l'application utilise du **Code Splitting par Route** sur les onglets principaux. Les modules lourds (`DashboardTab`, `SimulatorTab`, `RelevesTab`, `CostsTab`, `ChatTab`, `SettingsTab`) sont chargés dynamiquement à la volée grâce à React `lazy()` et encapsulés dans un composant `Suspense` fluide, réduisant drastiquement le temps de chargement initial.
+
+### 8. Paramétrage Dynamique et Configurable
+* Personnalisation centralisée de l'application via un onglet Paramètres.
+* **Configurations Multi-fluides :** Ajustement en temps réel des tarifs unitaires (TND) et facteurs d'émission ($CO_2$) de l'Électricité, de l'Eau et du Gaz.
+* **Intégration et Estimation Solaire :** Possibilité de configurer une estimation de production photovoltaïque mensuelle (kWh/mois) pour piloter précisément le calcul des taux d'autoconsommation de l'application sans nécessiter une sonde solaire matérielle.
 
 ---
 

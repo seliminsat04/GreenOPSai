@@ -122,15 +122,27 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
               />
             </div>
 
-            {/* SONEDE */}
+            {/* Eau Brute */}
             <div className="space-y-1.5 shadow-5xs p-1">
-              <label className="text-[11px] font-semibold text-slate-500 block">Tarif d'Eau Purifiée & Station SONEDE (TND / m³) :</label>
+              <label className="text-[11px] font-semibold text-slate-500 block">Tarif d'Eau Brute / SONEDE (TND / m³) :</label>
               <input 
                 type="number" 
                 step="0.05"
-                value={tariffs.sonedeWater}
-                onChange={(e) => handleTariffChange('sonedeWater', Number(e.target.value))}
+                value={tariffs.bruteWater || 1.5}
+                onChange={(e) => handleTariffChange('bruteWater', Number(e.target.value))}
                 className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 focus:border-emerald-500 font-mono text-xs font-bold text-slate-800 dark:text-slate-100 py-2 px-3 rounded-xl w-full focus:outline-none focus:ring-1 focus:ring-emerald-500/25 transition-all text-left"
+              />
+            </div>
+
+            {/* Eau Purifiee */}
+            <div className="space-y-1.5 shadow-5xs p-1">
+              <label className="text-[11px] font-semibold text-cyan-600 dark:text-cyan-400 block">Coût de Revient de l'Eau Purifiée (TND / m³) :</label>
+              <input 
+                type="number" 
+                step="0.05"
+                value={tariffs.purifiedWater || 8.5}
+                onChange={(e) => handleTariffChange('purifiedWater', Number(e.target.value))}
+                className="bg-cyan-50/50 dark:bg-cyan-950/20 border border-cyan-200 dark:border-cyan-800/50 focus:border-cyan-500 font-mono text-xs font-bold text-slate-800 dark:text-slate-100 py-2 px-3 rounded-xl w-full focus:outline-none focus:ring-1 focus:ring-cyan-500/25 transition-all text-left"
               />
             </div>
 
@@ -180,6 +192,18 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                 value={tariffs.co2Gasoil}
                 onChange={(e) => handleTariffChange('co2Gasoil', Number(e.target.value))}
                 className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 focus:border-emerald-500 font-mono text-xs font-bold text-slate-800 dark:text-slate-100 py-2 px-3 rounded-xl w-full focus:outline-none focus:ring-1 focus:ring-emerald-500/25 transition-all text-left"
+              />
+            </div>
+
+            {/* Prod PV Solaire */}
+            <div className="space-y-1.5 shadow-5xs p-1 pt-3 border-t border-slate-100 dark:border-slate-850">
+              <label className="text-[11px] font-semibold text-amber-500 block">Production Solaire Estimée (kWh / mois) :</label>
+              <input 
+                type="number" 
+                step="100"
+                value={tariffs.solarProductionKwh || 0}
+                onChange={(e) => handleTariffChange('solarProductionKwh', Number(e.target.value))}
+                className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 focus:border-amber-500 font-mono text-xs font-bold text-amber-700 dark:text-amber-400 py-2 px-3 rounded-xl w-full focus:outline-none focus:ring-1 focus:ring-amber-500/25 transition-all text-left"
               />
             </div>
 

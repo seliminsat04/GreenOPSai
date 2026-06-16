@@ -919,3 +919,128 @@ export const YearlyComparisonChart: React.FC<YearlyComparisonProps> = ({ data, t
   );
 };
 
+// TREEMAP CHART: Hierarchy of Cabinets and Equipments
+import { Treemap, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
+
+export const CabinetTreemap: React.FC<{ cabinets: any[], themeMode?: 'dark' | 'light' }> = ({ cabinets, themeMode = 'dark' }) => {
+  // Format data for Recharts Treemap
+  // We exclude CAB-01 (TGBT) to avoid duplicate consumption as it handles everything.
+  const excludedCabinets = ['CAB-01'];
+  
+  const TREEMAP_COLORS = [
+    '#0284c7', // sky-600
+    '#ea580c', // orange-600
+    '#059669', // emerald-600
+    '#4f46e5', // indigo-600
+    '#db2777', // pink-600
+    '#d97706', // amber-600
+    '#2563eb', // blue-600
+    '#c026d3', // fuchsia-600
+    '#65a30d', // lime-600
+    '#7c3aed', // violet-600
+    '#14b8a6', // teal-500
+    '#b91c1c', // red-700
+  ];
+
+  const formattedData = cabinets
+    .filter(c => !excludedCabinets.includes(c.id) && c.equipments && c.equipments.length > 0)
+    .map((c, idx) => {
+      const parentColor = TREEMAP_COLORS[idx % TREEMAP_COLORS.length];
+      return {
+        name: c.name.split(' - ')[0], // e.g. "Armoire 02"
+        children: c.equipments.map((e: any) => ({
+          name: e.name,
+          size: Math.abs(e.consumption) > 0 ? Math.abs(e.consumption) : 1, // need positive size
+          realSize: e.consumption,
+          unit: c.unit || 'kWh',
+          fill: parentColor,
+        }))
+      };
+    });
+
+  const CustomTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      const data = payload[0].payload;
+      return (
+        <div className={`p-3 rounded-xl border shadow-xl ${themeMode === 'light' ? 'bg-white border-slate-200 text-slate-800' : 'bg-slate-900 border-slate-800 text-slate-200'}`}>
+          <div className="flex items-center gap-2 mb-1">
+            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: data.fill }} />
+            <p className="font-bold font-sans text-sm leading-tight">{data.name}</p>
+          </div>
+          <p className="text-xs font-mono mt-1 text-[#79b823] ml-5">{data.realSize?.toLocaleString('fr-FR')} {data.unit}</p>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  return (
+    <div className={`relative p-5 rounded-2xl border transition-colors duration-300 h-[28rem] ${
+      themeMode === 'light' 
+        ? 'bg-white border-slate-200/80 shadow-sm' 
+        : 'bg-slate-900/60 border-slate-800 backdrop-blur-md'
+    }`}>
+      <h3 className={`font-display text-sm font-semibold mb-6 ${
+        themeMode === 'light' ? 'text-slate-800' : 'text-slate-300'
+      }`}>
+        Cartographie d'Arborescence : Consommation par Équipement (Sous-Comptage)
+      </h3>
+      <div className="w-full h-[350px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <Treemap
+            data={formattedData}
+            dataKey="size"
+            ratio={4 / 3}
+            stroke={themeMode === 'light' ? '#fff' : '#0f172a'}
+            isAnimationActive={false}
+          >
+            <RechartsTooltip content={<CustomTooltip />} />
+          </Treemap>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+};
+
+import { ComposedChart, Line, Bar, XAxis, YAxis, CartesianGrid, Legend, Tooltip as RechartsTooltip2 } from 'recharts';
+
+export const SolarVsNetworkChart: React.FC<{ data: any[], themeMode?: 'dark' | 'light' }> = ({ data, themeMode = 'dark' }) => {
+  return (
+    <div className={`relative p-5 rounded-2xl border transition-colors duration-300 h-96 ${
+      themeMode === 'light' 
+        ? 'bg-white border-slate-200/80 shadow-sm' 
+        : 'bg-slate-900/60 border-slate-800 backdrop-blur-md'
+    }`}>
+      <h3 className={`font-display text-sm font-semibold mb-6 ${
+        themeMode === 'light' ? 'text-slate-800' : 'text-slate-300'
+      }`}>
+        Autoconsommation : Production Solaire vs Réseau STEG (kWh)
+      </h3>
+      <div className="w-full h-[300px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={themeMode === 'light' ? '#e2e8f0' : '#334155'} />
+            <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: themeMode === 'light' ? '#64748b' : '#94a3b8' }} dy={10} />
+            <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: themeMode === 'light' ? '#64748b' : '#94a3b8' }} tickFormatter={(val) => `${val/1000}k`} />
+            <RechartsTooltip2 
+              contentStyle={{ 
+                backgroundColor: themeMode === 'light' ? '#fff' : '#0f172a',
+                borderColor: themeMode === 'light' ? '#e2e8f0' : '#1e293b',
+                borderRadius: '0.75rem',
+                color: themeMode === 'light' ? '#0f172a' : '#f8fafc',
+                fontSize: '12px'
+              }}
+              formatter={(value: any) => [`${value.toLocaleString()} kWh`, '']}
+            />
+            <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
+            <Bar dataKey="solar" name="Prod. Photovoltaïque" stackId="a" fill={themeMode === 'light' ? '#f59e0b' : '#fbbf24'} radius={[0, 0, 4, 4]} barSize={20} />
+            <Bar dataKey="grid" name="Réseau (STEG)" stackId="a" fill={themeMode === 'light' ? '#0f172a' : '#1e293b'} radius={[4, 4, 0, 0]} barSize={20} />
+            <Line type="monotone" dataKey="solar" name="Tendance Solaire" stroke="#f59e0b" strokeWidth={2} dot={false} strokeDasharray="4 4" />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+};
+
+

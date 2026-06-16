@@ -4,13 +4,14 @@ import dotenv from 'dotenv';
 import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI, Type } from '@google/genai';
+import { INITIAL_CABINETS } from './src/data';
 
 dotenv.config();
 
 const app = express();
 const PORT = 3000;
 
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
 
 // Initialize Gemini SDK if API key is present
 let ai: GoogleGenAI | null = null;
@@ -126,10 +127,19 @@ app.post('/api/gemini/chat', async (req, res) => {
 - Certification d'identité FDA 21 CFR Part 11: ${isCfrVerified ? 'VÉRIFIÉ (via Google Workspace SSO de confiance)' : 'Non vérifié (session locale)'}
 \n`;
 
+  const dictionaryContext = `[Arborescence Électrique et Sous-Comptage (A utiliser pour le Diagnostic et les Analyses de Taux de Charge)]:\n` + 
+    INITIAL_CABINETS.map(c => `- ${c.name} (${c.equipments?.length || 0} équipements enregistrés):\n` +
+      (c.equipments || []).map(e => `  * ${e.name} : Puissance / Calibre Max ${e.maxAmpere}A, Consommation: ${e.consumption} kWh`).join('\n')
+    ).join('\n') + `\n\n`;
+
   const systemPrompt = `Tu es GreenOpsAI, l'expert virtuel en efficacité énergétique industrielle et décarbonation dédié à l'usine pharmaceutique d'Opalia Recordati en Tunisie (située à l'Ariana).
 Ton interlocuteur actuel est ${activeUserName} (occupant le rôle de "${activeUserRole}", joignable à l'adresse email "${activeUserEmail}"). Adresse-toi directement à lui par son prénom/nom s'il y a lieu de façon professionnelle, polie et chaleureuse.
 Répond exclusivement en français de façon extrêmement technique, pragmatique, polie, professionnelle et orientée action industrielle.
 Propose des calculs précis, des astuces d'optimisation basées sur les protocoles pharmaceutiques réglementaires (ex: HVAC en zones de confinement stériles, maintien du gradient de pression des salles blanches de classe A, B, C, D, compression de l'eau purifiée SONEDE pour injectables, fonctionnement des chaudières à vapeur gasoil pour la stérilisation en autoclave).
+
+Utilise l'arborescence des sous-compteurs réels de l'usine d'Opalia (ci-dessous) pour orienter tes recommandations d'audits, de pannes ou tes réponses sur les diagnostics de consommation d'armoires. (ex: si une machine a une intensité MaxA énorme mais 0 kWh, mentionner qu'elle est en panne ou en redondance; si l'utilisateur demande quelle machine consomme le plus dans une armoire, lire cette arborescence).
+
+${dictionaryContext}
 
 Utilise le contexte des données de l'utilisateur actif s'il est fourni :${userContext}
 Utilise le contexte des données de simulation actuelles s'il est fourni :${metricsContext}

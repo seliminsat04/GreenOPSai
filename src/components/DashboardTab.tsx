@@ -2,11 +2,11 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { 
   Zap, Leaf, Activity, DollarSign, AlertTriangle, 
-  CheckCircle2, Sparkles, TrendingUp, TrendingDown, Info, ShieldAlert
+  CheckCircle2, Sparkles, TrendingUp, TrendingDown, Info, ShieldAlert, Sun, Droplets
 } from 'lucide-react';
 import { Cabinet, ProductMetrics } from '../types';
-import { StackedBarChart, DonutChart, LineTempEnergyChart, YearlyComparisonChart } from './Charts';
-import { TEMPERATURE_ENERGY_HISTORY, MONTHLY_ENERGY_COMPARISON_HISTORY } from '../data';
+import { StackedBarChart, DonutChart, LineTempEnergyChart, YearlyComparisonChart, CabinetTreemap, SolarVsNetworkChart } from './Charts';
+import { TEMPERATURE_ENERGY_HISTORY, MONTHLY_ENERGY_COMPARISON_HISTORY, MONTHLY_SOLAR_HISTORY } from '../data';
 import { playSound } from '../utils/audio';
 
 interface DashboardTabProps {
@@ -233,6 +233,118 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
 
       </div>
 
+      {/* ☀️ Green Energy Solar KPI Banner */}
+      {currentMetrics.pvProductionKwh > 0 && (
+        <motion.div 
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          whileHover={{ y: -5, scale: 1.015 }}
+          className={`group relative overflow-hidden grid grid-cols-1 md:grid-cols-3 gap-4 p-5 rounded-3xl border transition-all duration-300 shimmer-element ${
+            themeMode === 'light' 
+              ? 'bg-gradient-to-r from-amber-50 to-orange-50 border-amber-200 hover:border-amber-400 hover:shadow-xl shadow-sm' 
+              : 'bg-gradient-to-r from-amber-500/10 to-orange-500/10 border-amber-500/20 hover:border-amber-500/40 hover:bg-slate-900/80 hover:shadow-amber-500/10 hover:shadow-lg'
+          }`}
+        >
+          <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-bl-full pointer-events-none group-hover:bg-amber-500/20 transition-colors" />
+          <div className="col-span-1 md:col-span-3 flex items-center mb-1 relative z-10">
+            <Sun className={`w-5 h-5 mr-2 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-12 animate-pulse ${themeMode === 'light' ? 'text-amber-500' : 'text-amber-400'}`} />
+            <h3 className={`font-display font-bold text-sm tracking-tight ${themeMode === 'light' ? 'text-amber-800' : 'text-amber-300'}`}>
+              Impact Énergie Verte (Photovoltaïque)
+            </h3>
+            <Sparkles className="w-4 h-4 ml-2 opacity-0 group-hover:opacity-100 transition-opacity text-amber-500" />
+          </div>
+          
+          {/* Autoconsommation */}
+          <div className={`p-4 rounded-2xl border transition-all duration-300 group-hover:border-amber-300/50 ${themeMode === 'light' ? 'bg-white/80 backdrop-blur border-amber-100 shadow-sm' : 'bg-black/20 backdrop-blur border-amber-500/20'}`}>
+            <p className="text-[10px] font-mono font-bold uppercase text-slate-500 mb-1">Auto-consommation</p>
+            <div className="flex items-end gap-2">
+              <span className="text-2xl font-bold text-amber-500">{currentMetrics.autoConsumptionRate.toFixed(1)}%</span>
+              <span className="text-xs text-slate-400 font-mono mb-1">{currentMetrics.pvProductionKwh.toLocaleString('fr-FR')} kWh générés</span>
+            </div>
+            <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-1.5 mt-3 overflow-hidden">
+              <motion.div 
+                initial={{ width: 0 }}
+                animate={{ width: `${currentMetrics.autoConsumptionRate}%` }}
+                transition={{ duration: 1, delay: 0.2, ease: "easeOut" }}
+                className="bg-amber-500 h-1.5 rounded-full" 
+              />
+            </div>
+          </div>
+          
+          {/* Savings TND */}
+          <div className={`p-4 rounded-2xl border transition-all duration-300 group-hover:border-emerald-300/50 ${themeMode === 'light' ? 'bg-white/80 backdrop-blur border-amber-100 shadow-sm' : 'bg-black/20 backdrop-blur border-amber-500/20'}`}>
+            <p className="text-[10px] font-mono font-bold uppercase text-slate-500 mb-1">Économies (Solaire)</p>
+            <div className="flex items-end gap-2">
+              <span className="text-2xl font-bold text-emerald-500">{Math.round(currentMetrics.pvSavingsCost).toLocaleString('fr-FR')} TND</span>
+              <span className="text-xs text-slate-400 font-mono mb-1">économisés / mois</span>
+            </div>
+          </div>
+          
+          {/* CO2 Avoided */}
+          <div className={`p-4 rounded-2xl border transition-all duration-300 group-hover:border-teal-300/50 ${themeMode === 'light' ? 'bg-white/80 backdrop-blur border-amber-100 shadow-sm' : 'bg-black/20 backdrop-blur border-amber-500/20'}`}>
+            <p className="text-[10px] font-mono font-bold uppercase text-slate-500 mb-1">Empreinte Carbone Évitée</p>
+            <div className="flex items-end gap-2">
+              <span className="text-2xl font-bold text-teal-500">-{currentMetrics.pvSavingsCO2.toFixed(1)} t</span>
+              <span className="text-xs text-slate-400 font-mono mb-1">de CO₂ évitées</span>
+            </div>
+          </div>
+          
+        </motion.div>
+      )}
+
+      {/* 💧 Water Efficiency KPI Banner */}
+      <motion.div 
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        whileHover={{ y: -5, scale: 1.015 }}
+        className={`group relative overflow-hidden grid grid-cols-1 md:grid-cols-2 gap-4 p-5 rounded-3xl border transition-all duration-300 shimmer-element ${
+          themeMode === 'light' 
+            ? 'bg-gradient-to-r from-cyan-50 to-blue-50 border-cyan-200 hover:border-cyan-400 hover:shadow-xl shadow-sm' 
+            : 'bg-gradient-to-r from-cyan-500/10 to-blue-500/10 border-cyan-500/20 hover:border-cyan-500/40 hover:bg-slate-900/80 hover:shadow-cyan-500/10 hover:shadow-lg'
+        }`}
+      >
+        <div className="absolute top-0 left-0 w-32 h-32 bg-cyan-500/10 rounded-br-full pointer-events-none group-hover:bg-cyan-500/20 transition-colors" />
+        <div className="col-span-1 md:col-span-2 flex items-center mb-1 relative z-10">
+          <Droplets className={`w-5 h-5 mr-2 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-12 animate-pulse ${themeMode === 'light' ? 'text-cyan-500' : 'text-cyan-400'}`} />
+          <h3 className={`font-display font-bold text-sm tracking-tight ${themeMode === 'light' ? 'text-cyan-800' : 'text-cyan-300'}`}>
+            Rendement Station d'Eau Purifiée
+          </h3>
+        </div>
+        
+        {/* Rendement / Efficacité */}
+        <div className={`p-4 rounded-2xl border transition-all duration-300 group-hover:border-cyan-300/50 ${themeMode === 'light' ? 'bg-white/80 backdrop-blur border-cyan-100 shadow-sm' : 'bg-black/20 backdrop-blur border-cyan-500/20'}`}>
+          <p className="text-[10px] font-mono font-bold uppercase text-slate-500 mb-1">Efficacité de Conversion</p>
+          <div className="flex items-end gap-2">
+            <span className="text-2xl font-bold text-cyan-500">70.0%</span>
+            <span className="text-xs text-slate-400 font-mono mb-1">de rendement standard GMP</span>
+          </div>
+          <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-1.5 mt-3 overflow-hidden">
+            <motion.div 
+              initial={{ width: 0 }}
+              animate={{ width: `70%` }}
+              transition={{ duration: 1, delay: 0.2, ease: "easeOut" }}
+              className="bg-cyan-500 h-1.5 rounded-full" 
+            />
+          </div>
+        </div>
+        
+        {/* Production vs Consommation */}
+        <div className={`p-4 rounded-2xl border transition-all duration-300 group-hover:border-blue-300/50 ${themeMode === 'light' ? 'bg-white/80 backdrop-blur border-cyan-100 shadow-sm' : 'bg-black/20 backdrop-blur border-cyan-500/20'}`}>
+          <p className="text-[10px] font-mono font-bold uppercase text-slate-500 mb-1">Ratio de Production</p>
+          <div className="flex items-center gap-4 mt-2">
+            <div>
+              <span className="text-xl font-bold text-slate-700 dark:text-slate-200">{Math.round(currentMetrics.waterEvapM3).toLocaleString('fr-FR')}</span>
+              <span className="text-xs text-slate-500 font-mono ml-1 block">m³ Eau Brute (SONEDE)</span>
+            </div>
+            <div className="text-slate-400">→</div>
+            <div>
+              <span className="text-xl font-bold text-cyan-600 dark:text-cyan-400">{Math.round(currentMetrics.waterEvapM3 * 0.7).toLocaleString('fr-FR')}</span>
+              <span className="text-xs text-cyan-700/70 dark:text-cyan-500/80 font-mono ml-1 block">m³ Eau Purifiée (EP)</span>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+
       {/* Bento Grid: Charts & Alarms Console */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
@@ -307,6 +419,94 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
           </div>
         </div>
 
+      </div>
+
+      {/* Capacity Audit / Load Anomalies Panel */}
+      <div className={`p-6 rounded-3xl border transition-all ${
+        themeMode === 'light' 
+          ? 'bg-white border-slate-200/80 shadow-sm' 
+          : 'bg-slate-900/60 border-slate-800 backdrop-blur-md'
+      }`}>
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h3 className={`font-display text-sm font-semibold flex items-center ${
+              themeMode === 'light' ? 'text-slate-800' : 'text-slate-200'
+            }`}>
+              Audit de Capacité & Détection d'Anomalies <Sparkles className="w-3.5 h-3.5 ml-2 text-indigo-500" />
+            </h3>
+            <p className="text-[11px] font-mono text-slate-500 mt-1">Analyse du Taux de Charge vs. Calibre Maximum (Max A)</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {(() => {
+            const unusedAnomalies = cabinets.flatMap(c => 
+              (c.equipments || []).map(eq => {
+                const maxKVA = (eq.maxAmpere * 400 * 1.732) / 1000;
+                const theoMaxKWh = maxKVA * 24 * 30;
+                const loadFactor = ((eq.consumption / (theoMaxKWh || 1)) * 100).toFixed(2);
+                return { ...eq, cabinetName: c.name, loadFactor: parseFloat(loadFactor) };
+              })
+            ).filter(eq => eq.consumption === 0 && eq.maxAmpere > 100).slice(0, 3);
+
+            const highLoadAnomalies = cabinets.flatMap(c => 
+              (c.equipments || []).map(eq => {
+                const loadFactor = eq.consumption / eq.maxAmpere;
+                return { ...eq, cabinetName: c.name, ratio: loadFactor };
+              })
+            ).filter(eq => eq.consumption > 0).sort((a, b) => b.ratio - a.ratio).slice(0, 2);
+
+            const hasAnomalies = unusedAnomalies.length > 0 || highLoadAnomalies.length > 0;
+
+            if (!hasAnomalies) {
+              return (
+                <div className="col-span-full flex flex-col items-center justify-center py-6 px-4 bg-emerald-500/5 border border-emerald-500/20 rounded-2xl mx-auto w-full">
+                  <div className="w-10 h-10 bg-emerald-500/10 rounded-full flex items-center justify-center text-emerald-500 mb-3">
+                    <CheckCircle2 className="w-6 h-6" />
+                  </div>
+                  <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">Aucune anomalie détectée</p>
+                  <p className="text-xs font-mono text-emerald-500/70 mt-1 text-center">Taux de charge nominaux sur 100% du parc.</p>
+                </div>
+              );
+            }
+
+            return (
+              <>
+                {unusedAnomalies.map((eq, i) => (
+                  <div key={`unused-${i}`} className="flex items-start space-x-3 p-3 rounded-2xl bg-amber-500/5 border border-amber-500/20">
+                    <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0">
+                      <ShieldAlert className="w-4 h-4 text-amber-500" />
+                    </div>
+                    <div>
+                      <p className={`text-xs font-bold ${themeMode === 'light' ? 'text-slate-800' : 'text-slate-200'}`}>{eq.name}</p>
+                      <p className="text-[10px] text-slate-500 font-mono mt-0.5">{eq.cabinetName}</p>
+                      <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium mt-1">Capacité non exploitée ou équipement en panne : Calibre {eq.maxAmpere}A avec 0 kWh consommés.</p>
+                    </div>
+                  </div>
+                ))}
+                
+                {highLoadAnomalies.map((eq, i) => (
+                  <div key={`highload-${i}`} className="flex items-start space-x-3 p-3 rounded-2xl bg-indigo-500/5 border border-indigo-500/20">
+                    <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center shrink-0">
+                      <Activity className="w-4 h-4 text-indigo-500" />
+                    </div>
+                    <div>
+                      <p className={`text-xs font-bold ${themeMode === 'light' ? 'text-slate-800' : 'text-slate-200'}`}>{eq.name}</p>
+                      <p className="text-[10px] text-slate-500 font-mono mt-0.5">{eq.cabinetName}</p>
+                      <p className="text-[11px] text-indigo-600 dark:text-indigo-400 font-medium mt-1">Ratio de charge élevé détecté : {eq.consumption.toLocaleString('fr-FR')} kWh pour seulement {eq.maxAmpere}A.</p>
+                    </div>
+                  </div>
+                ))}
+              </>
+            );
+          })()}
+        </div>
+      </div>
+
+      {/* Solar vs Network &  Arborescence Treemap View */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full">
+         <SolarVsNetworkChart data={MONTHLY_SOLAR_HISTORY} themeMode={themeMode} />
+         <CabinetTreemap cabinets={cabinets} themeMode={themeMode} />
       </div>
     </div>
   );

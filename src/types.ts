@@ -1,8 +1,16 @@
+export interface Equipment {
+  id: string;
+  name: string;
+  maxAmpere: number;
+  consumption: number;
+}
+
 export interface Cabinet {
   id: string;
   name: string;
   description: string;
   category: 'electricite' | 'eau' | 'gasoil';
+  waterType?: 'brute' | 'purifiee';
   startIndex: number;
   endIndex: number;
   consumption: number; // calculated as (endIndex - startIndex) * multiplier
@@ -11,6 +19,7 @@ export interface Cabinet {
   status: 'Vert' | 'Orange' | 'Rouge';
   criticality: 'Faible' | 'Moyennne' | 'Critique';
   area: string;
+  equipments?: Equipment[];
 }
 
 export interface ProductMetrics {
@@ -40,10 +49,12 @@ export interface SimulationResults {
 
 export interface UtilityTariffs {
   stegElectricity: number; // TND/kWh (ex: 0.28)
-  sonedeWater: number; // TND/m3 (ex: 2.1)
+  bruteWater: number; // TND/m3 (ex: 1.5)
+  purifiedWater: number; // TND/m3 (ex: 8.5)
   gasoilLiter: number; // TND/liter (ex: 2.2)
   co2Electricity: number; // kg CO2/kWh from ANME (ex: 0.52)
   co2Gasoil: number; // kg CO2/Liter (ex: 2.68)
+  solarProductionKwh?: number; // PV production per month
 }
 
 export interface ChatMessage {

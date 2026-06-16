@@ -499,10 +499,10 @@ export const ChatTab: React.FC<ChatTabProps> = ({
   };
 
   const actionChips = [
-    { title: "Canicule & CTA 🌫️", prompt: "Quels réglages pour l'HVAC (Armoire 2) afin de minimiser le coût d'une canicule à Ariana ?" },
-    { title: "Dérive Armoire 8 ⚠️", prompt: "Pourquoi l'Armoire 8 (Ligne Pommade) montre une augmentation de consommation de 13% ?" },
-    { title: "Station Neutralisation 💧", prompt: "Explique-moi comment Opalia Recordati peut réduire ses rejets à la station d'épuration Armoire 14." },
-    { title: "Structure Sirop Toux 💰", prompt: "Quelle est la composition de notre coût direct par lot de Sirop contre la Toux ?" }
+    { title: "Analyse Taux de Charge 🔌", prompt: "Analyse les équipements d'usine. Pourquoi le Transformateur N°2 a 0 kWh alors que les N°1 et N°3 dépassent 89000 kWh ?" },
+    { title: "Dérive Froid ❄️", prompt: "En analysant l'Armoire 1, quels sont les groupes frigorifiques qui consomment le plus ? Sont-ils surdimensionnés ?" },
+    { title: "Lignes Production ⚠️", prompt: "Dans l'Armoire 8 (Conditionnement), quelles machines consomment le plus (ex: Guibli 50, Hulmann) ? Propose-moi une action d'audit localisée." },
+    { title: "Station de Pompage 💧", prompt: "Explique-moi comment Opalia Recordati peut auditer l'armoire pompes d'évacuation eau de pluie qui affiche actuellement 0 kWh." }
   ];
 
   return (

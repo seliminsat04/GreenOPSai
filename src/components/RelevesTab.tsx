@@ -615,6 +615,12 @@ export const RelevesTab: React.FC<RelevesTabProps> = ({
                             <td className="py-4 px-4">
                               <div className="flex items-center space-x-2">
                                 <span className="font-bold text-slate-800 dark:text-slate-200 block text-xs">{c.name}</span>
+                                {c.category === 'eau' && c.waterType === 'brute' && (
+                                  <span className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 text-[9px] font-bold px-1.5 py-0.5 rounded-md leading-none border border-blue-200 dark:border-blue-800/30">Eau SONEDE</span>
+                                )}
+                                {c.category === 'eau' && c.waterType === 'purifiee' && (
+                                  <span className="bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-400 text-[9px] font-bold px-1.5 py-0.5 rounded-md leading-none border border-cyan-200 dark:border-cyan-800/30">Eau Purifiée (EP)</span>
+                                )}
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -737,8 +743,14 @@ export const RelevesTab: React.FC<RelevesTabProps> = ({
                             )}
                           </div>
                           
-                          <div className="flex items-center space-x-2 mt-1 min-w-0">
+                          <div className="flex items-center space-x-2 mt-1 min-w-0 flex-wrap gap-y-1">
                             <span className="font-bold text-slate-800 dark:text-slate-200 text-xs truncate max-w-[185px] block">{c.name}</span>
+                            {c.category === 'eau' && c.waterType === 'brute' && (
+                              <span className="bg-blue-100/80 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 text-[9px] font-bold px-1.5 py-0.5 rounded-md leading-none border border-blue-200 dark:border-blue-800/30 shrink-0">SONEDE</span>
+                            )}
+                            {c.category === 'eau' && c.waterType === 'purifiee' && (
+                              <span className="bg-cyan-100/80 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-400 text-[9px] font-bold px-1.5 py-0.5 rounded-md leading-none border border-cyan-200 dark:border-cyan-800/30 shrink-0">Purifiée</span>
+                            )}
                             <button
                               type="button"
                               onClick={(e) => {
